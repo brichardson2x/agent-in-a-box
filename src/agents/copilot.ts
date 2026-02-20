@@ -1,17 +1,25 @@
 import { spawn } from 'node:child_process';
 import { AgentResult, IAgentBackend } from './types';
 import { normalizeAgentAuthError } from './auth-errors';
+import { Config } from '../config';
+
+const COPILOT_BINARY = 'copilot';
 
 export class CopilotAgent implements IAgentBackend {
-  async run(_prompt: string, repoPath: string, sessionId: string): Promise<AgentResult> {
-    void _prompt;
+  async run(prompt: string, repoPath: string, sessionId: string): Promise<AgentResult> {
     return new Promise<AgentResult>((resolve) => {
       const stdoutChunks: string[] = [];
       const stderrChunks: string[] = [];
 
       try {
-        // Copilot auth must already be completed on the host via `gh auth login`.
-        const child = spawn('gh', ['auth', 'status'], {
+        const args = ['--yolo', '--no-ask-user', '--no-color', '--no-alt-screen'];
+        if (Config.modelSelectionMode === 'custom' && Config.copilotModel !== 'default') {
+          args.push('--model', Config.copilotModel);
+        }
+        args.push('--prompt', prompt);
+
+        // Copilot auth must already be completed on the host via `copilot login`.
+        const child = spawn(COPILOT_BINARY, args, {
           cwd: repoPath,
           env: process.env,
           stdio: ['ignore', 'pipe', 'pipe']
@@ -32,23 +40,26 @@ export class CopilotAgent implements IAgentBackend {
           const stdout = stdoutChunks.join('');
           const stderr = stderrChunks.join('');
           const authError = normalizeAgentAuthError('copilot', stdout, stderr);
-          if (code !== 0 || authError) {
+          const summaryText = stdout.split('\n').filter(Boolean).pop() ?? 'Copilot completed';
+          if (code === 0 && !authError) {
             resolve({
-              success: false,
-              summary: `Copilot failed (${sessionId})`,
+              success: true,
+              summary: summaryText,
               filesChanged: [],
-              error:
-                authError ??
-                'Copilot authentication check failed. Run `gh auth login` on the host, then `systemctl restart gitAgent`.'
+              error: undefined
             });
             return;
           }
 
           resolve({
             success: false,
-            summary: 'Copilot agent is not implemented in this environment',
+            summary: `Copilot failed (${sessionId})`,
             filesChanged: [],
-            error: 'Copilot backend setup is still required after host authentication.'
+            error:
+              authError ||
+              stderr.trim() ||
+              stdout.trim() ||
+              'Copilot agent failed'
           });
         });
       } catch (error) {

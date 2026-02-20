@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { AgentResult, IAgentBackend } from './types';
 import { normalizeAgentAuthError } from './auth-errors';
+import { Config } from '../config';
 
 const CODex_BINARY = 'codex';
 
@@ -10,8 +11,13 @@ export class CodexAgent implements IAgentBackend {
       const stdoutChunks: string[] = [];
       const stderrChunks: string[] = [];
       try {
+        const args = ['--auto-approve'];
+        if (Config.modelSelectionMode === 'custom' && Config.codexModel !== 'default') {
+          args.push('--model', Config.codexModel);
+        }
+
         // Codex CLI auth must already be completed on the host via `codex auth`.
-        const child = spawn(CODex_BINARY, ['--auto-approve'], {
+        const child = spawn(CODex_BINARY, args, {
           cwd: repoPath,
           env: process.env,
           stdio: ['pipe', 'pipe', 'pipe']

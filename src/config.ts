@@ -19,11 +19,23 @@ const normalizePlatform = (value: string) => {
   return lower as 'github' | 'gitlab';
 };
 
+const normalizeModelSelectionMode = (value: string) => {
+  const lower = value.toLowerCase();
+  if (lower !== 'default' && lower !== 'custom') {
+    throw new Error(`Unsupported model selection mode: ${value}`);
+  }
+  return lower as 'default' | 'custom';
+};
+
 const platform = normalizePlatform(requireEnv('PLATFORM'));
+const modelSelectionMode = normalizeModelSelectionMode(process.env.MODEL_SELECTION_MODE ?? 'default');
 
 export const Config = {
   platform,
   agent: requireEnv('AGENT'),
+  modelSelectionMode,
+  codexModel: process.env.CODEX_MODEL ?? 'default',
+  copilotModel: process.env.COPILOT_MODEL ?? 'default',
   botHandle: requireEnv('BOT_HANDLE'),
   reviewer: requireEnv('REVIEWER_USERNAME'),
   webhookSecret: platform === 'github' ? requireEnv('WEBHOOK_SECRET') : requireEnv('GITLAB_WEBHOOK_SECRET'),
