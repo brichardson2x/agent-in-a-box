@@ -27,6 +27,9 @@ export const getInstallationToken = async (): Promise<string> => {
   }
 
   const tokenData = await getAuth()({ type: 'installation' });
+  if (!tokenData.token) {
+    throw new Error('GitHub installation token is missing in auth response');
+  }
   cachedToken = tokenData.token;
   tokenExpiresAt = tokenData.expiresAt ? new Date(tokenData.expiresAt).getTime() : now + 55 * 60 * 1000;
   return cachedToken;
