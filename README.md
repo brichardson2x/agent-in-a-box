@@ -17,6 +17,7 @@ Installer target: dnf-based RHEL-family distros (`rocky`, `centos`, `rhel`, `alm
    - Manual fallback mode pauses and keeps re-checking until the selected CLI is installed and available on `PATH`.
 4. Fill in the required `.env` values for your platform (`GITHUB_APP_*` for GitHub, or `GITLAB_APP_*` + `GITLAB_BOT_TOKEN` for GitLab).
 5. Configure your platform webhook to point at `/webhook` and use the matching secret (`WEBHOOK_SECRET` for GitHub, `GITLAB_WEBHOOK_SECRET` for GitLab).
+   - Mentions must match `BOT_HANDLE` (for example, `BOT_HANDLE=copilot-box` means use `@copilot-box`).
 6. Optional firewall automation: set `OPEN_FIREWALL_PORT=true` in `.env` to auto-open `${PORT:-3000}/tcp` via `firewall-cmd` when available.
 
 The installer creates a wrapper script at `/usr/local/bin/gitagent-wrapper.sh` that sources nvm and launches the service. The systemd unit runs as your user and can access nvm-installed Node.
