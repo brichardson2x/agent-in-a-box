@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "$(id -u)" -eq 0 ]]; then
+  echo "ERROR: Do not run this installer as root or with sudo."
+  echo "The script will prompt for sudo when needed for system package installation."
+  echo "Please run as your regular user: ./scripts/install.sh"
+  exit 1
+fi
+
 if [[ -f /etc/os-release ]]; then
   source /etc/os-release
   case "${ID:-}" in
@@ -398,9 +405,28 @@ fi
 
 SERVICE_WORKDIR="$(pwd)"
 SERVICE_USER="$(whoami)"
+
+# Create wrapper script in /usr/local/bin that systemd can execute
+# This works around systemd's restrictions on accessing user home directories
+cat > /tmp/gitagent-wrapper.sh << 'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+# Source nvm to ensure node is available
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+cd "$(dirname "$0")"
+exec node dist/index.js "$@"
+EOF
+
+# Replace the placeholder working directory with the actual one
+sed -i "s|cd \".*\"|cd \"${SERVICE_WORKDIR}\"|" /tmp/gitagent-wrapper.sh
+
+chmod +x /tmp/gitagent-wrapper.sh
+sudo mv /tmp/gitagent-wrapper.sh /usr/local/bin/gitagent-wrapper.sh
+
 sudo sed \
   -e "s|^WorkingDirectory=.*|WorkingDirectory=${SERVICE_WORKDIR}|" \
-  -e "s|^ExecStart=.*|ExecStart=${NODE_BIN} dist/index.js|" \
+  -e "s|^ExecStart=.*|ExecStart=/usr/local/bin/gitagent-wrapper.sh|" \
   -e "/^\[Service\]/a User=${SERVICE_USER}" \
   gitAgent.service > /tmp/gitAgent.service
 sudo cp /tmp/gitAgent.service /etc/systemd/system/gitAgent.service
