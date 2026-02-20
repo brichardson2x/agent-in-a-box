@@ -71,18 +71,25 @@ GitAgent is a self-hosted, single-tenant backend service that monitors a Git pla
 | `PLATFORM` | Yes | Git platform: `github` or `gitlab` |
 | `AGENT` | Yes | AI agent backend: `codex` or `copilot` |
 | `BOT_HANDLE` | Yes | The @mention handle the bot listens for (without @) |
-| `PLATFORM_TOKEN` | Yes | Personal access token for GitHub or GitLab API |
 | `REVIEWER_USERNAME` | Yes | Platform username to request PR review from |
-| `WEBHOOK_SECRET` | Yes | Secret to validate incoming webhook payloads |
+| `WEBHOOK_SECRET` | GitHub only | Secret to validate incoming GitHub webhook payloads |
+| `GITLAB_WEBHOOK_SECRET` | GitLab only | Secret token used to validate incoming GitLab webhooks |
+| `GITHUB_APP_ID` | GitHub only | GitHub App ID |
+| `GITHUB_APP_PRIVATE_KEY_PATH` | GitHub only | Absolute path to the GitHub App private key PEM file |
+| `GITHUB_APP_INSTALLATION_ID` | GitHub only | GitHub App installation ID for the target repo |
+| `GITHUB_APP_CLIENT_ID` | GitHub only | GitHub App client ID |
+| `GITLAB_APP_ID` | GitLab only | GitLab OAuth application ID |
+| `GITLAB_APP_SECRET` | GitLab only | GitLab OAuth application secret |
+| `GITLAB_BOT_TOKEN` | GitLab only | GitLab bot token used for API calls |
 | `REPO_PATH` | Yes | Absolute path on host where the target repo is checked out |
 | `REPO_REMOTE` | Yes | Git remote URL of the target repo |
 | `AGENT_SYSTEM_PROMPT` | Yes | Instructions prepended to every agent prompt |
-| `OPENAI_API_KEY` | Codex only | API key for OpenAI Codex |
-| `COPILOT_TOKEN` | Copilot only | Auth token for GitHub Copilot SDK |
 | `SQLITE_PATH` | No | Path to SQLite DB file (default: `./data/agent.db`) |
 | `PORT` | No | HTTP port for Express server (default: `3000`) |
 | `LOG_LEVEL` | No | Logging verbosity: `debug`, `info`, `warn`, `error` (default: `info`) |
 | `DEFAULT_BRANCH` | No | Base branch for PRs (default: `main`) |
+
+- Agent auth is completed interactively on the host before startup: run `codex auth` when `AGENT=codex`, or run `gh auth login` when `AGENT=copilot`.
 
 ---
 
@@ -155,7 +162,7 @@ Sessions are the core persistence unit. A session ties together an issue, its li
 
 - User must configure a webhook on their GitHub repo or GitLab project pointing to `http(s)://HOST:PORT/webhook`
 - Webhook events: Issues (comments), Pull Requests (comments) — or equivalent GitLab events
-- `WEBHOOK_SECRET` must match the value configured on the platform
+- For GitHub, `WEBHOOK_SECRET` must match the configured webhook secret; for GitLab, configure and match `GITLAB_WEBHOOK_SECRET`.
 
 ---
 
