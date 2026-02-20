@@ -4,6 +4,8 @@ GitAgent is a self-hosted service that listens for GitHub/GitLab mentions, invok
 
 ## Getting started
 
+Installer target: dnf-based RHEL-family distros (`rocky`, `centos`, `rhel`, `almalinux`).
+
 1. Run `bash scripts/install.sh` and choose your platform (`github` or `gitlab`), agent (`copilot` or `codex`), and model mode (`default` or `custom`) when prompted.
 2. The installer copies `.env.example` to `.env` if needed, installs base dependencies (including Python + pip), and installs/authenticates only the selected platform/agent tooling.
 3. Fill in the required `.env` values for your platform (`GITHUB_APP_*` for GitHub, or `GITLAB_APP_*` + `GITLAB_BOT_TOKEN` for GitLab).

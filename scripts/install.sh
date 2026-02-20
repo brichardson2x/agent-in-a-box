@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REQUIRED_OS="rocky"
-
 if [[ -f /etc/os-release ]]; then
   source /etc/os-release
-  if [[ "${ID:-}" != "$REQUIRED_OS" ]]; then
-    echo "This installer is targeted at Rocky Linux but found $ID"
-    exit 1
-  fi
+  case "${ID:-}" in
+    rocky|centos|rhel|almalinux)
+      ;;
+    *)
+      if [[ "${ID_LIKE:-}" != *rhel* && "${ID_LIKE:-}" != *fedora* ]]; then
+        echo "This installer requires a RHEL-compatible distro with dnf (Rocky, CentOS, RHEL, AlmaLinux). Found ${ID:-unknown}."
+        exit 1
+      fi
+      ;;
+  esac
 fi
 
 sudo dnf install -y git sqlite curl tar python3 python3-pip
@@ -18,9 +22,11 @@ if [[ ! -d "$HOME/.nvm" ]]; then
   curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 fi
 
+set +u
 source "$HOME/.nvm/nvm.sh"
 nvm install --lts
 nvm use --lts
+set -u
 
 if [[ ! -f .env ]]; then
   cp .env.example .env
