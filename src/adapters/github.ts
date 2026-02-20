@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 import { Request } from 'express';
 import { Config } from '../config';
 import { IPlatformAdapter, PRResult, ThreadType, WebhookEvent, IssueContext } from './types';
@@ -8,6 +8,14 @@ import { getInstallationToken } from './github-auth';
 const API_BASE = 'https://api.github.com';
 
 class GitHubAdapter implements IPlatformAdapter {
+  private async ensureOk(response: Response, context: string): Promise<void> {
+    if (response.ok) {
+      return;
+    }
+    const details = await response.text();
+    throw new Error(`${context} failed (${response.status}): ${details}`);
+  }
+
   verifyWebhookSignature(req: Request, secret: string, rawBody: Buffer): boolean {
     const signature = (req.headers['x-hub-signature-256'] ?? '') as string;
     if (!signature.startsWith('sha256=')) {
@@ -36,9 +44,13 @@ class GitHubAdapter implements IPlatformAdapter {
       return null;
     }
 
-    const threadType: ThreadType = event === 'pull_request_review_comment' ? 'pr' : 'issue';
+    const isIssueCommentOnPr = event === 'issue_comment' && Boolean(body.issue?.pull_request);
+    const threadType: ThreadType = event === 'pull_request_review_comment' || isIssueCommentOnPr ? 'pr' : 'issue';
     const issueNumber = Number(body.issue?.number ?? body.pull_request?.number ?? 0);
-    const prNumber = threadType === 'pr' ? Number(body.pull_request?.number ?? body.comment?.pull_request_url?.split('/').pop()) : undefined;
+    const prNumber =
+      threadType === 'pr'
+        ? Number(body.pull_request?.number ?? body.issue?.number ?? body.comment?.pull_request_url?.split('/').pop())
+        : undefined;
     const author = (body.comment?.user?.login ?? body.review?.user?.login ?? '') as string;
 
     if (!issueNumber) {
@@ -69,11 +81,12 @@ class GitHubAdapter implements IPlatformAdapter {
   async postComment(repo: string, threadId: number, threadType: ThreadType, body: string): Promise<void> {
     const threadPath = threadType === 'issue' ? 'issues' : 'issues';
     const headers = await this.headers();
-    await fetch(`${API_BASE}/repos/${repo}/${threadPath}/${threadId}/comments`, {
+    const response = await fetch(`${API_BASE}/repos/${repo}/${threadPath}/${threadId}/comments`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ body })
     });
+    await this.ensureOk(response, 'GitHub post comment');
   }
 
   async createPR(repo: string, branch: string, base: string, title: string, body: string): Promise<PRResult> {
@@ -88,6 +101,7 @@ class GitHubAdapter implements IPlatformAdapter {
         body
       })
     });
+    await this.ensureOk(result, 'GitHub create PR');
     const data = (await result.json()) as Record<string, unknown>;
     return {
       url: (data.html_url ?? '') as string,
@@ -98,20 +112,33 @@ class GitHubAdapter implements IPlatformAdapter {
 
   async requestReview(repo: string, prNumber: number, username: string): Promise<void> {
     const headers = await this.headers();
-    await fetch(`${API_BASE}/repos/${repo}/pulls/${prNumber}/requested_reviewers`, {
+    const response = await fetch(`${API_BASE}/repos/${repo}/pulls/${prNumber}/requested_reviewers`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ reviewers: [username] })
     });
+    await this.ensureOk(response, 'GitHub request review');
   }
 
   async linkIssueToPR(repo: string, issueNumber: number, prNumber: number): Promise<void> {
     const headers = await this.headers();
-    await fetch(`${API_BASE}/repos/${repo}/pulls/${prNumber}`, {
+    const currentPrResponse = await fetch(`${API_BASE}/repos/${repo}/pulls/${prNumber}`, {
+      headers
+    });
+    await this.ensureOk(currentPrResponse, 'GitHub fetch PR for issue link');
+    const currentPr = (await currentPrResponse.json()) as { body?: string };
+    const closeLine = `Closes #${issueNumber}`;
+    const updatedBody =
+      typeof currentPr.body === 'string' && currentPr.body.includes(closeLine)
+        ? currentPr.body
+        : [currentPr.body ?? '', closeLine].filter(Boolean).join('\n\n');
+
+    const response = await fetch(`${API_BASE}/repos/${repo}/pulls/${prNumber}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ body: `Closes #${issueNumber}` })
+      body: JSON.stringify({ body: updatedBody })
     });
+    await this.ensureOk(response, 'GitHub link issue to PR');
   }
 
   async getIssueContext(repo: string, issueNumber: number): Promise<IssueContext> {
@@ -119,10 +146,12 @@ class GitHubAdapter implements IPlatformAdapter {
     const issueResponse = await fetch(`${API_BASE}/repos/${repo}/issues/${issueNumber}`, {
       headers
     });
+    await this.ensureOk(issueResponse, 'GitHub get issue context');
     const issueData = (await issueResponse.json()) as Record<string, unknown>;
     const commentsResponse = await fetch(`${API_BASE}/repos/${repo}/issues/${issueNumber}/comments`, {
       headers
     });
+    await this.ensureOk(commentsResponse, 'GitHub get issue comments');
     const comments = (await commentsResponse.json()) as Array<{
       user?: { login?: string };
       body?: string;

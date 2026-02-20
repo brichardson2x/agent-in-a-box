@@ -22,7 +22,9 @@ router.post('/', async (req: RawBodyRequest, res: Response) => {
       return res.status(200).json({ status: 'ignored' });
     }
 
-    await orchestrateJob(event, adapter);
+    void orchestrateJob(event, adapter).catch((error) => {
+      process.stderr.write(`Failed to process webhook job: ${(error as Error).message}\n`);
+    });
     return res.status(200).json({ status: 'accepted' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to process webhook', details: (error as Error).message });
