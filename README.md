@@ -6,14 +6,16 @@ GitAgent is a self-hosted service that listens for GitHub/GitLab mentions, invok
 
 Installer target: dnf-based RHEL-family distros (`rocky`, `centos`, `rhel`, `almalinux`).
 
-1. Run `bash scripts/install.sh` and choose your platform (`github` or `gitlab`), agent (`copilot` or `codex`), and model mode (`default` or `custom`) when prompted.
-2. The installer copies `.env.example` to `.env` if needed, installs base dependencies (including Python + pip), and installs/authenticates only the selected platform/agent tooling.
+1. Run `bash scripts/install.sh` from the repo root and choose your platform (`github` or `gitlab`), agent (`copilot` or `codex`), and model mode (`default` or `custom`) when prompted.
+2. The installer copies `.env.example` to `.env` if needed, installs base dependencies (including Python + pip + native build tools), installs Node.js `22` by default via nvm (`NODE_VERSION` override supported), and installs/authenticates only the selected platform/agent tooling.
 3. CLI installer fallback behavior:
    - `copilot` / `codex`: tries npm global install first, retries with `--unsafe-perm`, then prompts for manual install.
    - `gh` / `glab`: tries dnf package first, then repo/RPM fallback, then prompts for manual install.
    - Manual fallback mode pauses and keeps re-checking until the selected CLI is installed and available on `PATH`.
 4. Fill in the required `.env` values for your platform (`GITHUB_APP_*` for GitHub, or `GITLAB_APP_*` + `GITLAB_BOT_TOKEN` for GitLab).
 5. Configure your platform webhook to point at `/webhook` and use the matching secret (`WEBHOOK_SECRET` for GitHub, `GITLAB_WEBHOOK_SECRET` for GitLab).
+
+The installer writes a systemd unit with `WorkingDirectory` set to your current repo path and `ExecStart` set to the detected `node` binary.
 
 ### Agent model settings
 
