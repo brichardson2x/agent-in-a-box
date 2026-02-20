@@ -405,24 +405,28 @@ fi
 
 SERVICE_WORKDIR="$(pwd)"
 SERVICE_USER="$(whoami)"
+SERVICE_HOME="$(getent passwd "${SERVICE_USER}" | cut -d: -f6 || true)"
+
+if [[ -z "${SERVICE_HOME}" ]]; then
+  echo "Unable to determine home directory for service user ${SERVICE_USER}."
+  exit 1
+fi
 
 # Create wrapper script in /usr/local/bin that systemd can execute
 # This works around systemd's restrictions on accessing user home directories
-cat > /tmp/gitagent-wrapper.sh << 'EOF'
-#!/usr/bin/env bash
+cat > /tmp/gitagent-wrapper.sh << EOF
+#!/bin/bash
 set -euo pipefail
 # Source nvm to ensure node is available
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
-cd "$(dirname "$0")"
-exec node dist/index.js "$@"
+export NVM_DIR="${SERVICE_HOME}/.nvm"
+[ -s "\$NVM_DIR/nvm.sh" ] && source "\$NVM_DIR/nvm.sh"
+cd "${SERVICE_WORKDIR}"
+exec node dist/index.js "\$@"
 EOF
 
-# Replace the placeholder working directory with the actual one
-sed -i "s|cd \".*\"|cd \"${SERVICE_WORKDIR}\"|" /tmp/gitagent-wrapper.sh
-
-chmod +x /tmp/gitagent-wrapper.sh
-sudo mv /tmp/gitagent-wrapper.sh /usr/local/bin/gitagent-wrapper.sh
+sudo install -o root -g root -m 0755 /tmp/gitagent-wrapper.sh /usr/local/bin/gitagent-wrapper.sh
+rm -f /tmp/gitagent-wrapper.sh
+sudo restorecon -F /usr/local/bin/gitagent-wrapper.sh >/dev/null 2>&1 || true
 
 sudo sed \
   -e "s|^WorkingDirectory=.*|WorkingDirectory=${SERVICE_WORKDIR}|" \
