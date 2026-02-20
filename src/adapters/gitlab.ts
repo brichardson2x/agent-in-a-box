@@ -8,7 +8,8 @@ const API_BASE = 'https://gitlab.com/api/v4';
 class GitLabAdapter implements IPlatformAdapter {
   verifyWebhookSignature(req: Request, secret: string): boolean {
     const token = (req.headers['x-gitlab-token'] ?? '') as string;
-    return token !== '' && secret !== '' && token === secret;
+    const expectedSecret = Config.gitlabWebhookSecret ?? secret;
+    return token !== '' && expectedSecret !== '' && token === expectedSecret;
   }
 
   parseWebhookEvent(req: Request): WebhookEvent | null {
@@ -52,7 +53,7 @@ class GitLabAdapter implements IPlatformAdapter {
 
   private headers(): Record<string, string> {
     return {
-      'Private-Token': Config.platformToken,
+      'Private-Token': Config.gitlabBotToken ?? '',
       'Content-Type': 'application/json'
     };
   }
