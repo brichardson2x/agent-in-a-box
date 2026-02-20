@@ -397,9 +397,11 @@ if ! run_project_checks; then
 fi
 
 SERVICE_WORKDIR="$(pwd)"
+SERVICE_USER="$(whoami)"
 sudo sed \
   -e "s|^WorkingDirectory=.*|WorkingDirectory=${SERVICE_WORKDIR}|" \
   -e "s|^ExecStart=.*|ExecStart=${NODE_BIN} dist/index.js|" \
+  -e "/^\[Service\]/a User=${SERVICE_USER}" \
   gitAgent.service > /tmp/gitAgent.service
 sudo cp /tmp/gitAgent.service /etc/systemd/system/gitAgent.service
 sudo systemctl daemon-reload
