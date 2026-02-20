@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 import { Request } from 'express';
 import { Config } from '../config';
 import { IPlatformAdapter, PRResult, ThreadType, WebhookEvent, IssueContext } from './types';
@@ -6,7 +6,16 @@ import { IPlatformAdapter, PRResult, ThreadType, WebhookEvent, IssueContext } fr
 const API_BASE = 'https://gitlab.com/api/v4';
 
 class GitLabAdapter implements IPlatformAdapter {
-  verifyWebhookSignature(req: Request, secret: string): boolean {
+  private async ensureOk(response: Response, context: string): Promise<void> {
+    if (response.ok) {
+      return;
+    }
+    const details = await response.text();
+    throw new Error(`${context} failed (${response.status}): ${details}`);
+  }
+
+  verifyWebhookSignature(req: Request, secret: string, _rawBody: Buffer): boolean {
+    void _rawBody;
     const token = (req.headers['x-gitlab-token'] ?? '') as string;
     return token !== '' && secret !== '' && token === secret;
   }
@@ -23,7 +32,7 @@ class GitLabAdapter implements IPlatformAdapter {
       return null;
     }
 
-    const project = body.project?.path_with_namespace ?? body.project?.path_with_namespace;
+    const project = body.project?.path_with_namespace;
     if (!project) {
       return null;
     }
@@ -63,16 +72,18 @@ class GitLabAdapter implements IPlatformAdapter {
       threadType === 'issue'
         ? `${API_BASE}/projects/${encoded}/issues/${threadId}/notes`
         : `${API_BASE}/projects/${encoded}/merge_requests/${threadId}/notes`;
-    await fetch(target, {
+    const response = await fetch(target, {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify({ body })
     });
+    await this.ensureOk(response, 'GitLab post comment');
   }
 
   private async resolveProjectId(repo: string): Promise<number> {
     const encoded = encodeURIComponent(repo);
     const response = await fetch(`${API_BASE}/projects/${encoded}`, { headers: this.headers() });
+    await this.ensureOk(response, 'GitLab resolve project');
     const data = (await response.json()) as { id?: number };
     if (!data.id) {
       throw new Error(`Unable to resolve GitLab project ${repo}`);
@@ -92,6 +103,7 @@ class GitLabAdapter implements IPlatformAdapter {
         description: body
       })
     });
+    await this.ensureOk(response, 'GitLab create merge request');
     const data = (await response.json()) as Record<string, unknown>;
     return {
       url: (data.web_url ?? '') as string,
@@ -100,22 +112,47 @@ class GitLabAdapter implements IPlatformAdapter {
     };
   }
 
-  async requestReview(_repo: string, _prNumber: number, _username: string): Promise<void> {
-    void _repo;
-    void _prNumber;
-    void _username;
-    return Promise.resolve();
+  async requestReview(repo: string, prNumber: number, username: string): Promise<void> {
+    const projectId = await this.resolveProjectId(repo);
+    const usersResponse = await fetch(`${API_BASE}/users?username=${encodeURIComponent(username)}`, {
+      headers: this.headers()
+    });
+    await this.ensureOk(usersResponse, 'GitLab find reviewer');
+    const users = (await usersResponse.json()) as Array<{ id?: number; username?: string }>;
+    const reviewer = users.find((candidate) => candidate.username === username);
+    if (!reviewer?.id) {
+      throw new Error(`GitLab reviewer ${username} was not found`);
+    }
+
+    const response = await fetch(`${API_BASE}/projects/${projectId}/merge_requests/${prNumber}`, {
+      method: 'PUT',
+      headers: this.headers(),
+      body: JSON.stringify({ reviewer_ids: [reviewer.id] })
+    });
+    await this.ensureOk(response, 'GitLab request review');
   }
 
   async linkIssueToPR(repo: string, issueNumber: number, prNumber: number): Promise<void> {
     const projectId = await this.resolveProjectId(repo);
-    await fetch(`${API_BASE}/projects/${projectId}/merge_requests/${prNumber}`, {
+    const currentMrResponse = await fetch(`${API_BASE}/projects/${projectId}/merge_requests/${prNumber}`, {
+      headers: this.headers()
+    });
+    await this.ensureOk(currentMrResponse, 'GitLab fetch merge request for issue link');
+    const currentMr = (await currentMrResponse.json()) as { description?: string };
+    const closeLine = `Closes #${issueNumber}`;
+    const updatedDescription =
+      typeof currentMr.description === 'string' && currentMr.description.includes(closeLine)
+        ? currentMr.description
+        : [currentMr.description ?? '', closeLine].filter(Boolean).join('\n\n');
+
+    const response = await fetch(`${API_BASE}/projects/${projectId}/merge_requests/${prNumber}`, {
       method: 'PUT',
       headers: this.headers(),
       body: JSON.stringify({
-        description: `Closes #${issueNumber}`
+        description: updatedDescription
       })
     });
+    await this.ensureOk(response, 'GitLab link issue to merge request');
   }
 
   async getIssueContext(repo: string, issueNumber: number): Promise<IssueContext> {
@@ -123,11 +160,13 @@ class GitLabAdapter implements IPlatformAdapter {
     const issueResponse = await fetch(`${API_BASE}/projects/${projectId}/issues/${issueNumber}`, {
       headers: this.headers()
     });
+    await this.ensureOk(issueResponse, 'GitLab get issue context');
     const issueData = (await issueResponse.json()) as Record<string, unknown>;
     const notesResponse = await fetch(
       `${API_BASE}/projects/${projectId}/issues/${issueNumber}/notes`,
       { headers: this.headers() }
     );
+    await this.ensureOk(notesResponse, 'GitLab get issue notes');
     const notes = (await notesResponse.json()) as Array<{
       author?: { username?: string };
       body?: string;

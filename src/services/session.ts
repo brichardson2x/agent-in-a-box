@@ -29,7 +29,9 @@ export const resolveSession = async (event: WebhookEvent): Promise<Session> => {
       return issueSession;
     }
 
-    return createSession(prKey, event.platform, event.repo);
+    const created = createSession(issueKey, event.platform, event.repo);
+    linkPrToSession(created.id, prKey);
+    return created;
   }
 
   const fallback = getSessionByIssueId(issueKey);
