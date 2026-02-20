@@ -15,7 +15,9 @@ if [[ -f /etc/os-release ]]; then
   esac
 fi
 
-sudo dnf install -y git sqlite curl tar python3 python3-pip
+NODE_VERSION="${NODE_VERSION:-22}"
+
+sudo dnf install -y git sqlite curl tar python3 python3-pip make gcc-c++
 
 # Install nvm & Node.js LTS
 if [[ ! -d "$HOME/.nvm" ]]; then
@@ -24,9 +26,17 @@ fi
 
 set +u
 source "$HOME/.nvm/nvm.sh"
-nvm install --lts
-nvm use --lts
+echo "Installing Node.js $NODE_VERSION via nvm (override with NODE_VERSION=...)."
+nvm install "$NODE_VERSION"
+nvm use "$NODE_VERSION"
+nvm alias default "$NODE_VERSION" >/dev/null 2>&1 || true
 set -u
+
+NODE_BIN="$(command -v node || true)"
+if [[ -z "$NODE_BIN" ]]; then
+  echo "Node.js binary not found on PATH after nvm setup."
+  exit 1
+fi
 
 if [[ ! -f .env ]]; then
   cp .env.example .env
@@ -292,8 +302,22 @@ npm ci
 npm run build
 npm run test
 
-sudo cp gitAgent.service /etc/systemd/system/
+SERVICE_WORKDIR="$(pwd)"
+sudo sed \
+  -e "s|^WorkingDirectory=.*|WorkingDirectory=${SERVICE_WORKDIR}|" \
+  -e "s|^ExecStart=.*|ExecStart=${NODE_BIN} dist/index.js|" \
+  gitAgent.service > /tmp/gitAgent.service
+sudo cp /tmp/gitAgent.service /etc/systemd/system/gitAgent.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now gitAgent.service
 
-curl -fsS "http://localhost:${PORT:-3000}/health"
+for _ in {1..15}; do
+  if curl -fsS "http://localhost:${PORT:-3000}/health" >/dev/null; then
+    echo "Health check passed."
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "Health check failed after waiting for startup."
+exit 1
