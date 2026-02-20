@@ -351,7 +351,7 @@ PLATFORM=github setup checklist:
 - Events: Issue comments, Pull request review comments.
 - Install the app on the target repository.
 - Download the private key (.pem) to this host.
-- Add App ID, Installation ID, Client ID, and private key path to .env.
+- Add App ID (from app settings, not account/installation target ID), Installation ID, Client ID, and private key path to .env.
 EOF
     ;;
   gitlab)
