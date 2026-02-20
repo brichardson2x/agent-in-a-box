@@ -406,9 +406,22 @@ fi
 SERVICE_WORKDIR="$(pwd)"
 SERVICE_USER="$(whoami)"
 SERVICE_HOME="$(getent passwd "${SERVICE_USER}" | cut -d: -f6 || true)"
+SERVICE_ENTRYPOINT=""
 
 if [[ -z "${SERVICE_HOME}" ]]; then
   echo "Unable to determine home directory for service user ${SERVICE_USER}."
+  exit 1
+fi
+
+if [[ -f "${SERVICE_WORKDIR}/dist/index.js" ]]; then
+  SERVICE_ENTRYPOINT="${SERVICE_WORKDIR}/dist/index.js"
+elif [[ -f "${SERVICE_WORKDIR}/dist/src/index.js" ]]; then
+  SERVICE_ENTRYPOINT="${SERVICE_WORKDIR}/dist/src/index.js"
+else
+  echo "Unable to find compiled service entrypoint."
+  echo "Expected one of:"
+  echo "  ${SERVICE_WORKDIR}/dist/index.js"
+  echo "  ${SERVICE_WORKDIR}/dist/src/index.js"
   exit 1
 fi
 
@@ -421,7 +434,7 @@ set -euo pipefail
 export NVM_DIR="${SERVICE_HOME}/.nvm"
 [ -s "\$NVM_DIR/nvm.sh" ] && source "\$NVM_DIR/nvm.sh"
 cd "${SERVICE_WORKDIR}"
-exec node dist/index.js "\$@"
+exec node "${SERVICE_ENTRYPOINT}" "\$@"
 EOF
 
 sudo install -o root -g root -m 0755 /tmp/gitagent-wrapper.sh /usr/local/bin/gitagent-wrapper.sh
