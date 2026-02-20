@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
-import { Config } from '../config';
 import { AgentResult, IAgentBackend } from './types';
+import { normalizeAgentAuthError } from './auth-errors';
 
 const CODex_BINARY = 'codex';
 
@@ -10,18 +10,28 @@ export class CodexAgent implements IAgentBackend {
       const stdoutChunks: string[] = [];
       const stderrChunks: string[] = [];
       try {
+        // Codex CLI auth must already be completed on the host via `codex auth`.
         const child = spawn(CODex_BINARY, ['--auto-approve'], {
           cwd: repoPath,
-          env: { ...process.env, OPENAI_API_KEY: Config.openAiKey ?? '' },
+          env: process.env,
           stdio: ['pipe', 'pipe', 'pipe']
         });
 
         child.stdout?.on('data', (chunk) => stdoutChunks.push(String(chunk)));
         child.stderr?.on('data', (chunk) => stderrChunks.push(String(chunk)));
+        child.on('error', (error) => {
+          resolve({
+            success: false,
+            summary: `Codex failed (${sessionId})`,
+            filesChanged: [],
+            error: (error as Error).message
+          });
+        });
 
         child.on('close', (code) => {
-          const combined = stdoutChunks.join('');
-          const summaryText = combined.split('\n').filter(Boolean).pop() ?? 'Codex completed';
+          const stdout = stdoutChunks.join('');
+          const stderr = stderrChunks.join('');
+          const summaryText = stdout.split('\n').filter(Boolean).pop() ?? 'Codex completed';
           if (code === 0) {
             resolve({
               success: true,
@@ -34,7 +44,11 @@ export class CodexAgent implements IAgentBackend {
               success: false,
               summary: `Codex failed (${sessionId})`,
               filesChanged: [],
-              error: stderrChunks.join('').trim() || 'Codex agent failed'
+              error:
+                normalizeAgentAuthError('codex', stdout, stderr) ||
+                stderr.trim() ||
+                stdout.trim() ||
+                'Codex agent failed'
             });
           }
         });
