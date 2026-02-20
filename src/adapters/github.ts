@@ -39,19 +39,31 @@ class GitHubAdapter implements IPlatformAdapter {
     }
 
     const mention = `@${Config.botHandle}`;
-    const commentBody = (body.comment?.body ?? body.review?.body ?? '') as string;
-    if (!commentBody.includes(mention)) {
+    const action = (body.action ?? '') as string;
+    const isIssueEvent = event === 'issues';
+    const isIssueCommentEvent = event === 'issue_comment';
+    const isReviewCommentEvent = event === 'pull_request_review_comment';
+    if (!isIssueEvent && !isIssueCommentEvent && !isReviewCommentEvent) {
       return null;
     }
 
-    const isIssueCommentOnPr = event === 'issue_comment' && Boolean(body.issue?.pull_request);
+    if (isIssueEvent && !['opened', 'edited', 'reopened'].includes(action)) {
+      return null;
+    }
+
+    const eventBody = (isIssueEvent ? body.issue?.body : body.comment?.body ?? body.review?.body ?? '') as string;
+    if (!eventBody.includes(mention)) {
+      return null;
+    }
+
+    const isIssueCommentOnPr = isIssueCommentEvent && Boolean(body.issue?.pull_request);
     const threadType: ThreadType = event === 'pull_request_review_comment' || isIssueCommentOnPr ? 'pr' : 'issue';
     const issueNumber = Number(body.issue?.number ?? body.pull_request?.number ?? 0);
     const prNumber =
       threadType === 'pr'
         ? Number(body.pull_request?.number ?? body.issue?.number ?? body.comment?.pull_request_url?.split('/').pop())
         : undefined;
-    const author = (body.comment?.user?.login ?? body.review?.user?.login ?? '') as string;
+    const author = (isIssueEvent ? body.issue?.user?.login : body.comment?.user?.login ?? body.review?.user?.login ?? '') as string;
 
     if (!issueNumber) {
       return null;
@@ -63,7 +75,7 @@ class GitHubAdapter implements IPlatformAdapter {
       repo: githubRepo,
       issueNumber,
       prNumber: prNumber || undefined,
-      body: commentBody,
+      body: eventBody,
       author,
       metadata: { event, payload: body },
       eventId: body.action ? `${event}:${body.action}` : event
