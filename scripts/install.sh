@@ -11,7 +11,7 @@ if [[ -f /etc/os-release ]]; then
   fi
 fi
 
-sudo dnf install -y git sqlite curl tar
+sudo dnf install -y git sqlite curl tar python3 python3-pip
 
 # Install nvm & Node.js LTS
 if [[ ! -d "$HOME/.nvm" ]]; then
@@ -22,40 +22,87 @@ source "$HOME/.nvm/nvm.sh"
 nvm install --lts
 nvm use --lts
 
-# Install GitHub CLI
-sudo dnf install -y gh || true
-
-# Install GitLab CLI (glab)
-GLAB_RPM_URL="https://github.com/profclems/glab/releases/latest/download/glab_linux_amd64.rpm"
-curl -fsSL "$GLAB_RPM_URL" -o /tmp/glab.rpm
-sudo dnf install -y /tmp/glab.rpm
-
-# Install act (GitHub Actions runner)
-curl -fsSL https://github.com/nektos/act/releases/latest/download/act-linux-amd64 -o /usr/local/bin/act
-chmod +x /usr/local/bin/act
-
-npm ci
-
 if [[ ! -f .env ]]; then
   cp .env.example .env
   echo "Copied .env.example to .env. Please populate the file before running the service."
 fi
 
-set -a
-source .env
-set +a
+prompt_choice() {
+  local prompt="$1"
+  shift
+  local valid=("$@")
+  local value
+  while true; do
+    read -r -p "$prompt " value
+    value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
+    for option in "${valid[@]}"; do
+      if [[ "$value" == "$option" ]]; then
+        printf '%s\n' "$value"
+        return 0
+      fi
+    done
+    echo "Invalid choice: '$value'. Valid options: ${valid[*]}"
+  done
+}
 
-agent="$(printf '%s' "${AGENT:-}" | tr '[:upper:]' '[:lower:]')"
-platform="$(printf '%s' "${PLATFORM:-}" | tr '[:upper:]' '[:lower:]')"
+set_env_var() {
+  local key="$1"
+  local value="$2"
+  if grep -qE "^${key}=" .env; then
+    sed -i "s|^${key}=.*|${key}=${value}|" .env
+  else
+    printf '%s=%s\n' "$key" "$value" >> .env
+  fi
+}
+
+ensure_gh() {
+  if ! command -v gh >/dev/null 2>&1; then
+    sudo dnf install -y gh
+  fi
+}
+
+ensure_glab() {
+  if ! command -v glab >/dev/null 2>&1; then
+    local glab_rpm_url="https://github.com/profclems/glab/releases/latest/download/glab_linux_amd64.rpm"
+    curl -fsSL "$glab_rpm_url" -o /tmp/glab.rpm
+    sudo dnf install -y /tmp/glab.rpm
+  fi
+}
+
+platform="$(prompt_choice "Platform (github/gitlab):" github gitlab)"
+agent="$(prompt_choice "Agent (copilot/codex):" copilot codex)"
+
+set_env_var PLATFORM "$platform"
+set_env_var AGENT "$agent"
+
+case "$platform" in
+  github)
+    ensure_gh
+    ;;
+  gitlab)
+    ensure_glab
+    ;;
+esac
 
 case "$agent" in
   codex)
-    bash "$(dirname "$0")/install-codex.sh"
+    if ! command -v codex >/dev/null 2>&1; then
+      echo "Codex CLI not found. Installing @openai/codex-sdk..."
+      npm install -g @openai/codex-sdk
+    fi
+    if ! command -v codex >/dev/null 2>&1; then
+      echo "Codex CLI installation check failed."
+      exit 1
+    fi
+    echo "Authenticate Codex before continuing."
+    echo "Run: codex auth"
+    until codex auth status >/dev/null 2>&1; do
+      read -r -p "Press Enter after running 'codex auth' to re-check: " _
+    done
+    echo "Codex auth confirmed."
     ;;
   copilot)
-    if ! command -v gh >/dev/null 2>&1; then
-      sudo dnf install -y gh
-    fi
+    ensure_gh
     echo "Authenticate GitHub CLI before continuing."
     echo "Run: gh auth login"
     until gh auth status >/dev/null 2>&1; do
@@ -63,11 +110,11 @@ case "$agent" in
     done
     echo "GitHub CLI auth confirmed."
     ;;
-  *)
-    echo "Unsupported AGENT value in .env: '${AGENT:-}' (expected codex or copilot)."
-    exit 1
-    ;;
 esac
+
+set -a
+source .env
+set +a
 
 echo "Reminder: if auth expires, re-run the agent auth command and restart with: systemctl restart gitAgent"
 
@@ -104,12 +151,12 @@ read -r -p "Press Enter after completing the platform app setup checklist and up
 sudo mkdir -p /etc/gitagent
 sudo cp .env /etc/gitagent/.env
 
+npm ci
 npm run build
 npm run test
 
-mkdir -p /etc/systemd/system
-cp gitAgent.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now gitAgent.service
+sudo cp gitAgent.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now gitAgent.service
 
 curl -fsS "http://localhost:${PORT:-3000}/health"

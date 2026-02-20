@@ -4,9 +4,9 @@ GitAgent is a self-hosted service that listens for GitHub/GitLab mentions, invok
 
 ## Getting started
 
-1. Copy `.env.example` to `.env` and fill in required values for your platform (`GITHUB_APP_*` for GitHub, or `GITLAB_APP_*` + `GITLAB_BOT_TOKEN` for GitLab).
-2. Pre-auth the selected agent on the host: run `codex auth` when `AGENT=codex`, or `gh auth login` when `AGENT=copilot`.
-3. Run `npm run build` and `npm start`, or `npm run dev` during development.
+1. Run `bash scripts/install.sh` and choose your platform (`github` or `gitlab`) and agent (`copilot` or `codex`) when prompted.
+2. The installer copies `.env.example` to `.env` if needed, installs base dependencies (including Python + pip), and installs/authenticates only the selected platform/agent tooling.
+3. Fill in the required `.env` values for your platform (`GITHUB_APP_*` for GitHub, or `GITLAB_APP_*` + `GITLAB_BOT_TOKEN` for GitLab).
 4. Configure your platform webhook to point at `/webhook` and use the matching secret (`WEBHOOK_SECRET` for GitHub, `GITLAB_WEBHOOK_SECRET` for GitLab).
 
 ## Scripts
