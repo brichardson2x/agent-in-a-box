@@ -1,6 +1,12 @@
 type AgentAuthProvider = 'codex' | 'copilot';
 
-const AUTH_FAILURE_PATTERNS = [/not authenticated/i, /token expired/i, /login required/i, /unauthorized/i];
+const AUTH_FAILURE_PATTERNS = [
+  /not authenticated/i,
+  /token expired/i,
+  /login required/i,
+  /unauthorized/i,
+  /authentication required/i
+];
 
 export const normalizeAgentAuthError = (
   provider: AgentAuthProvider,
@@ -16,5 +22,5 @@ export const normalizeAgentAuthError = (
     return 'Codex authentication failed. Run `codex auth` on the host and restart gitAgent service.';
   }
 
-  return 'Copilot authentication failed. Run `gh auth login` on the host, then `systemctl restart gitAgent`.';
+  return 'Copilot authentication failed. Run `copilot login` on the host and restart gitAgent service.';
 };

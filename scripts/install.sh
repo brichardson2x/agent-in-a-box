@@ -69,11 +69,69 @@ ensure_glab() {
   fi
 }
 
+ensure_copilot_cli() {
+  if ! command -v copilot >/dev/null 2>&1; then
+    echo "Copilot CLI not found. Installing @github/copilot..."
+    npm install -g @github/copilot
+  fi
+}
+
+CODEX_MODELS=(
+  gpt-5.3-codex
+  gpt-5.2-codex
+  gpt-5.1-codex-max
+  gpt-5.1-codex
+  gpt-5.1-codex-mini
+  gpt-5-mini
+  gpt-4.1
+)
+
+COPILOT_MODELS=(
+  claude-sonnet-4.6
+  claude-sonnet-4.5
+  claude-haiku-4.5
+  claude-opus-4.6
+  claude-opus-4.6-fast
+  claude-opus-4.5
+  claude-sonnet-4
+  gemini-3-pro-preview
+  gpt-5.3-codex
+  gpt-5.2-codex
+  gpt-5.2
+  gpt-5.1-codex-max
+  gpt-5.1-codex
+  gpt-5.1
+  gpt-5.1-codex-mini
+  gpt-5-mini
+  gpt-4.1
+)
+
 platform="$(prompt_choice "Platform (github/gitlab):" github gitlab)"
 agent="$(prompt_choice "Agent (copilot/codex):" copilot codex)"
+model_mode="$(prompt_choice "Model mode (default/custom):" default custom)"
 
 set_env_var PLATFORM "$platform"
 set_env_var AGENT "$agent"
+set_env_var MODEL_SELECTION_MODE "$model_mode"
+
+case "$agent" in
+  codex)
+    if [[ "$model_mode" == "custom" ]]; then
+      codex_model="$(prompt_choice "Codex model (${CODEX_MODELS[*]}):" "${CODEX_MODELS[@]}")"
+    else
+      codex_model="default"
+    fi
+    set_env_var CODEX_MODEL "$codex_model"
+    ;;
+  copilot)
+    if [[ "$model_mode" == "custom" ]]; then
+      copilot_model="$(prompt_choice "Copilot model (${COPILOT_MODELS[*]}):" "${COPILOT_MODELS[@]}")"
+    else
+      copilot_model="default"
+    fi
+    set_env_var COPILOT_MODEL "$copilot_model"
+    ;;
+esac
 
 case "$platform" in
   github)
@@ -95,20 +153,24 @@ case "$agent" in
       exit 1
     fi
     echo "Authenticate Codex before continuing."
-    echo "Run: codex auth"
-    until codex auth status >/dev/null 2>&1; do
-      read -r -p "Press Enter after running 'codex auth' to re-check: " _
+    echo "Run: codex login"
+    until codex login status >/dev/null 2>&1; do
+      read -r -p "Press Enter after running 'codex login' to re-check: " _
     done
     echo "Codex auth confirmed."
     ;;
   copilot)
-    ensure_gh
-    echo "Authenticate GitHub CLI before continuing."
-    echo "Run: gh auth login"
-    until gh auth status >/dev/null 2>&1; do
-      read -r -p "Press Enter after running 'gh auth login' to re-check: " _
+    ensure_copilot_cli
+    if ! command -v copilot >/dev/null 2>&1; then
+      echo "Copilot CLI installation check failed."
+      exit 1
+    fi
+    echo "Authenticate Copilot CLI before continuing."
+    echo "Run: copilot login"
+    until copilot login; do
+      read -r -p "Press Enter to retry 'copilot login': " _
     done
-    echo "GitHub CLI auth confirmed."
+    echo "Copilot auth confirmed."
     ;;
 esac
 
