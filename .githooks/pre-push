@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Run the repository CI workflow locally using act; fail the push if it fails.
+echo "Running 'act -W .github/workflows/ci.yml' to validate CI..."
+if ! command -v act >/dev/null 2>&1; then
+  echo "Error: 'act' is not installed or not on PATH. Install from https://github.com/nektos/act" >&2
+  exit 1
+fi
+
+if ! act -W .github/workflows/ci.yml; then
+  echo "'act' returned non-zero; aborting push." >&2
+  exit 1
+fi
+
+echo "'act' succeeded; continuing push."

@@ -1,0 +1,14 @@
+[Unit]
+Description=GitAgent AI service
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/gitagent/.env
+WorkingDirectory=/opt/gitagent
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
