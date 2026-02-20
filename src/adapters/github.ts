@@ -3,6 +3,7 @@ import fetch, { Response } from 'node-fetch';
 import { Request } from 'express';
 import { Config } from '../config';
 import { IPlatformAdapter, PRResult, ThreadType, WebhookEvent, IssueContext } from './types';
+import { getInstallationToken } from './github-auth';
 
 const API_BASE = 'https://api.github.com';
 
@@ -69,27 +70,30 @@ class GitHubAdapter implements IPlatformAdapter {
     };
   }
 
-  private headers(): Record<string, string> {
+  private async headers(): Promise<Record<string, string>> {
+    const token = await getInstallationToken();
     return {
-      Authorization: `Bearer ${Config.platformToken}`,
+      Authorization: `Bearer ${token}`,
       Accept: 'application/vnd.github+json'
     };
   }
 
   async postComment(repo: string, threadId: number, threadType: ThreadType, body: string): Promise<void> {
     const threadPath = threadType === 'issue' ? 'issues' : 'issues';
+    const headers = await this.headers();
     const response = await fetch(`${API_BASE}/repos/${repo}/${threadPath}/${threadId}/comments`, {
       method: 'POST',
-      headers: { ...this.headers(), 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ body })
     });
     await this.ensureOk(response, 'GitHub post comment');
   }
 
   async createPR(repo: string, branch: string, base: string, title: string, body: string): Promise<PRResult> {
+    const headers = await this.headers();
     const result = await fetch(`${API_BASE}/repos/${repo}/pulls`, {
       method: 'POST',
-      headers: { ...this.headers(), 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title,
         head: branch,
@@ -107,17 +111,19 @@ class GitHubAdapter implements IPlatformAdapter {
   }
 
   async requestReview(repo: string, prNumber: number, username: string): Promise<void> {
+    const headers = await this.headers();
     const response = await fetch(`${API_BASE}/repos/${repo}/pulls/${prNumber}/requested_reviewers`, {
       method: 'POST',
-      headers: { ...this.headers(), 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ reviewers: [username] })
     });
     await this.ensureOk(response, 'GitHub request review');
   }
 
   async linkIssueToPR(repo: string, issueNumber: number, prNumber: number): Promise<void> {
+    const headers = await this.headers();
     const currentPrResponse = await fetch(`${API_BASE}/repos/${repo}/pulls/${prNumber}`, {
-      headers: this.headers()
+      headers
     });
     await this.ensureOk(currentPrResponse, 'GitHub fetch PR for issue link');
     const currentPr = (await currentPrResponse.json()) as { body?: string };
@@ -129,20 +135,21 @@ class GitHubAdapter implements IPlatformAdapter {
 
     const response = await fetch(`${API_BASE}/repos/${repo}/pulls/${prNumber}`, {
       method: 'PATCH',
-      headers: { ...this.headers(), 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ body: updatedBody })
     });
     await this.ensureOk(response, 'GitHub link issue to PR');
   }
 
   async getIssueContext(repo: string, issueNumber: number): Promise<IssueContext> {
+    const headers = await this.headers();
     const issueResponse = await fetch(`${API_BASE}/repos/${repo}/issues/${issueNumber}`, {
-      headers: this.headers()
+      headers
     });
     await this.ensureOk(issueResponse, 'GitHub get issue context');
     const issueData = (await issueResponse.json()) as Record<string, unknown>;
     const commentsResponse = await fetch(`${API_BASE}/repos/${repo}/issues/${issueNumber}/comments`, {
-      headers: this.headers()
+      headers
     });
     await this.ensureOk(commentsResponse, 'GitHub get issue comments');
     const comments = (await commentsResponse.json()) as Array<{
