@@ -16,5 +16,5 @@ export const normalizeAgentAuthError = (
     return 'Codex authentication failed. Run `codex auth` on the host and restart gitAgent service.';
   }
 
-  return 'Copilot authentication failed. Run `gh auth login` on the host and restart gitAgent service.';
+  return 'Copilot authentication failed. Run `gh auth login` on the host, then `systemctl restart gitAgent`.';
 };
