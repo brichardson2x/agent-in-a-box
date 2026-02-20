@@ -61,24 +61,104 @@ set_env_var() {
   fi
 }
 
+ensure_npm_global_bin_on_path() {
+  local npm_prefix
+  npm_prefix="$(npm config get prefix 2>/dev/null || true)"
+  if [[ -n "$npm_prefix" && "$npm_prefix" != "undefined" && "$npm_prefix" != "null" ]]; then
+    if [[ -d "$npm_prefix/bin" && ":$PATH:" != *":$npm_prefix/bin:"* ]]; then
+      export PATH="$npm_prefix/bin:$PATH"
+    fi
+  fi
+}
+
+prompt_manual_install() {
+  local binary="$1"
+  local install_hint="$2"
+  echo "Automatic install for '$binary' failed."
+  echo "$install_hint"
+  until command -v "$binary" >/dev/null 2>&1; do
+    read -r -p "Install '$binary' manually, ensure it is on PATH, then press Enter to re-check: " _
+  done
+}
+
 ensure_gh() {
+  if command -v gh >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "GitHub CLI (gh) not found. Trying dnf package..."
+  if ! sudo dnf install -y gh; then
+    echo "dnf package 'gh' not available. Trying official GitHub CLI repo..."
+    sudo dnf install -y 'dnf-command(config-manager)' || true
+    if ! sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo; then
+      echo "Could not add GitHub CLI repo."
+    fi
+    sudo dnf install -y gh || true
+  fi
+
   if ! command -v gh >/dev/null 2>&1; then
-    sudo dnf install -y gh
+    prompt_manual_install gh "Manual fallback: https://github.com/cli/cli#installation"
   fi
 }
 
 ensure_glab() {
-  if ! command -v glab >/dev/null 2>&1; then
+  if command -v glab >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "GitLab CLI (glab) not found. Trying dnf package..."
+  if ! sudo dnf install -y glab; then
+    echo "dnf package 'glab' not available. Trying direct RPM..."
     local glab_rpm_url="https://github.com/profclems/glab/releases/latest/download/glab_linux_amd64.rpm"
-    curl -fsSL "$glab_rpm_url" -o /tmp/glab.rpm
-    sudo dnf install -y /tmp/glab.rpm
+    if ! curl -fsSL "$glab_rpm_url" -o /tmp/glab.rpm; then
+      echo "Could not download glab RPM."
+    else
+      sudo dnf install -y /tmp/glab.rpm || true
+    fi
+  fi
+
+  if ! command -v glab >/dev/null 2>&1; then
+    prompt_manual_install glab "Manual fallback: https://gitlab.com/gitlab-org/cli#installation"
   fi
 }
 
 ensure_copilot_cli() {
+  ensure_npm_global_bin_on_path
+  if command -v copilot >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Copilot CLI not found. Trying npm global install..."
+  npm install -g @github/copilot || true
+  ensure_npm_global_bin_on_path
   if ! command -v copilot >/dev/null 2>&1; then
-    echo "Copilot CLI not found. Installing @github/copilot..."
-    npm install -g @github/copilot
+    echo "Retrying Copilot CLI install with --unsafe-perm..."
+    npm install -g --unsafe-perm @github/copilot || true
+    ensure_npm_global_bin_on_path
+  fi
+
+  if ! command -v copilot >/dev/null 2>&1; then
+    prompt_manual_install copilot "Manual fallback: npm install -g @github/copilot"
+  fi
+}
+
+ensure_codex_cli() {
+  ensure_npm_global_bin_on_path
+  if command -v codex >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Codex CLI not found. Trying npm global install..."
+  npm install -g @openai/codex-sdk || true
+  ensure_npm_global_bin_on_path
+  if ! command -v codex >/dev/null 2>&1; then
+    echo "Retrying Codex CLI install with --unsafe-perm..."
+    npm install -g --unsafe-perm @openai/codex-sdk || true
+    ensure_npm_global_bin_on_path
+  fi
+
+  if ! command -v codex >/dev/null 2>&1; then
+    prompt_manual_install codex "Manual fallback: npm install -g @openai/codex-sdk"
   fi
 }
 
@@ -150,14 +230,7 @@ esac
 
 case "$agent" in
   codex)
-    if ! command -v codex >/dev/null 2>&1; then
-      echo "Codex CLI not found. Installing @openai/codex-sdk..."
-      npm install -g @openai/codex-sdk
-    fi
-    if ! command -v codex >/dev/null 2>&1; then
-      echo "Codex CLI installation check failed."
-      exit 1
-    fi
+    ensure_codex_cli
     echo "Authenticate Codex before continuing."
     echo "Run: codex login"
     until codex login status >/dev/null 2>&1; do
@@ -167,10 +240,6 @@ case "$agent" in
     ;;
   copilot)
     ensure_copilot_cli
-    if ! command -v copilot >/dev/null 2>&1; then
-      echo "Copilot CLI installation check failed."
-      exit 1
-    fi
     echo "Authenticate Copilot CLI before continuing."
     echo "Run: copilot login"
     until copilot login; do
