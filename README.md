@@ -15,8 +15,10 @@ Installer target: dnf-based RHEL-family distros (`rocky`, `centos`, `rhel`, `alm
    - Manual fallback mode pauses and keeps re-checking until the selected CLI is installed and available on `PATH`.
 4. Fill in the required `.env` values for your platform (`GITHUB_APP_*` for GitHub, or `GITLAB_APP_*` + `GITLAB_BOT_TOKEN` for GitLab).
 5. Configure your platform webhook to point at `/webhook` and use the matching secret (`WEBHOOK_SECRET` for GitHub, `GITLAB_WEBHOOK_SECRET` for GitLab).
+6. Optional firewall automation: set `OPEN_FIREWALL_PORT=true` in `.env` to auto-open `${PORT:-3000}/tcp` via `firewall-cmd` when available.
 
 The installer writes a systemd unit with `WorkingDirectory` set to your current repo path and `ExecStart` set to the detected `node` binary.
+On health-check failure, installer now prints `systemctl status` and recent `journalctl` logs so startup/config errors are visible immediately.
 
 ### Agent model settings
 

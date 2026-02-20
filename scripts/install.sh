@@ -77,6 +77,70 @@ set_env_var() {
   fi
 }
 
+require_env_value() {
+  local key="$1"
+  local value="${!key:-}"
+  if [[ -z "$value" ]]; then
+    echo "Missing required .env value: $key"
+    return 1
+  fi
+  case "$value" in
+    change-me|your_gitlab_app_id|your_gitlab_app_secret|glpat-your-bot-token|/path/to/github-app-private-key.pem)
+      echo "Placeholder value detected for $key in .env. Please replace it."
+      return 1
+      ;;
+  esac
+  return 0
+}
+
+validate_env_config() {
+  local has_error=0
+  for key in PLATFORM AGENT BOT_HANDLE REVIEWER_USERNAME REPO_PATH REPO_REMOTE AGENT_SYSTEM_PROMPT; do
+    if ! require_env_value "$key"; then
+      has_error=1
+    fi
+  done
+
+  case "$platform" in
+    github)
+      for key in WEBHOOK_SECRET GITHUB_APP_ID GITHUB_APP_PRIVATE_KEY_PATH GITHUB_APP_INSTALLATION_ID GITHUB_APP_CLIENT_ID; do
+        if ! require_env_value "$key"; then
+          has_error=1
+        fi
+      done
+      if [[ -n "${GITHUB_APP_PRIVATE_KEY_PATH:-}" && ! -f "${GITHUB_APP_PRIVATE_KEY_PATH}" ]]; then
+        echo "GitHub private key file not found: ${GITHUB_APP_PRIVATE_KEY_PATH}"
+        has_error=1
+      fi
+      ;;
+    gitlab)
+      for key in GITLAB_WEBHOOK_SECRET GITLAB_APP_ID GITLAB_APP_SECRET GITLAB_BOT_TOKEN; do
+        if ! require_env_value "$key"; then
+          has_error=1
+        fi
+      done
+      ;;
+  esac
+
+  if [[ "$has_error" -ne 0 ]]; then
+    echo "Please fix .env values and run the installer again."
+    exit 1
+  fi
+}
+
+print_service_diagnostics() {
+  echo "Health check failed on http://127.0.0.1:${PORT:-3000}/health."
+  echo "This is usually a service startup/config issue, not a firewall issue for localhost."
+  echo "Service status:"
+  sudo systemctl --no-pager --full status gitAgent.service || true
+  echo "Recent service logs:"
+  sudo journalctl -u gitAgent.service -n 80 --no-pager || true
+  if command -v firewall-cmd >/dev/null 2>&1; then
+    echo "If external webhooks cannot reach this host, you can open the port with:"
+    echo "  sudo firewall-cmd --add-port=${PORT:-3000}/tcp --permanent && sudo firewall-cmd --reload"
+  fi
+}
+
 ensure_npm_global_bin_on_path() {
   local npm_prefix
   npm_prefix="$(npm config get prefix 2>/dev/null || true)"
@@ -301,6 +365,12 @@ esac
 
 read -r -p "Press Enter after completing the platform app setup checklist and updating .env: " _
 
+set -a
+source .env
+set +a
+
+validate_env_config
+
 sudo mkdir -p /etc/gitagent
 sudo cp .env /etc/gitagent/.env
 
@@ -335,13 +405,21 @@ sudo cp /tmp/gitAgent.service /etc/systemd/system/gitAgent.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now gitAgent.service
 
+if command -v firewall-cmd >/dev/null 2>&1 && [[ "${OPEN_FIREWALL_PORT:-false}" == "true" ]]; then
+  sudo firewall-cmd --add-port="${PORT:-3000}/tcp" --permanent || true
+  sudo firewall-cmd --reload || true
+fi
+
 for _ in {1..15}; do
-  if curl -fsS "http://localhost:${PORT:-3000}/health" >/dev/null; then
+  if curl -fs "http://127.0.0.1:${PORT:-3000}/health" >/dev/null 2>&1; then
     echo "Health check passed."
     exit 0
+  fi
+  if ! sudo systemctl is-active --quiet gitAgent.service; then
+    break
   fi
   sleep 2
 done
 
-echo "Health check failed after waiting for startup."
+print_service_diagnostics
 exit 1
