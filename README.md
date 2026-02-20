@@ -6,7 +6,9 @@ GitAgent is a self-hosted service that listens for GitHub/GitLab mentions, invok
 
 Installer target: dnf-based RHEL-family distros (`rocky`, `centos`, `rhel`, `almalinux`).
 
-1. Run `bash scripts/install.sh` from the repo root and choose your platform (`github` or `gitlab`), agent (`copilot` or `codex`), and model mode (`default` or `custom`) when prompted.
+**Important**: Run the installer as your regular user (not root, not with sudo). The script will prompt for sudo when needed for system packages.
+
+1. Run `bash scripts/install.sh` from the repo root as your regular user and choose your platform (`github` or `gitlab`), agent (`copilot` or `codex`), and model mode (`default` or `custom`) when prompted.
 2. The installer copies `.env.example` to `.env` if needed, installs base dependencies (including Python + pip + native build tools), installs Node.js `20` by default via nvm (`NODE_VERSION` override supported), and installs/authenticates only the selected platform/agent tooling.
 3. CLI installer fallback behavior:
    - `copilot` / `codex`: tries npm global install first, retries with `--unsafe-perm`, then prompts for manual install.
@@ -17,7 +19,7 @@ Installer target: dnf-based RHEL-family distros (`rocky`, `centos`, `rhel`, `alm
 5. Configure your platform webhook to point at `/webhook` and use the matching secret (`WEBHOOK_SECRET` for GitHub, `GITLAB_WEBHOOK_SECRET` for GitLab).
 6. Optional firewall automation: set `OPEN_FIREWALL_PORT=true` in `.env` to auto-open `${PORT:-3000}/tcp` via `firewall-cmd` when available.
 
-The installer writes a systemd unit with `WorkingDirectory` set to your current repo path and `ExecStart` set to the detected `node` binary.
+The installer writes a systemd unit with `WorkingDirectory` set to your current repo path, `ExecStart` set to the detected `node` binary, and `User` set to the installing user (ensuring the service can access nvm-installed Node).
 On health-check failure, installer now prints `systemctl status` and recent `journalctl` logs so startup/config errors are visible immediately.
 
 ### Agent model settings

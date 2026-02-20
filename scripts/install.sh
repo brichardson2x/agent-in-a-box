@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "$(id -u)" -eq 0 ]]; then
+  echo "ERROR: Do not run this installer as root or with sudo."
+  echo "The script will prompt for sudo when needed for system package installation."
+  echo "Please run as your regular user: ./scripts/install.sh"
+  exit 1
+fi
+
 if [[ -f /etc/os-release ]]; then
   source /etc/os-release
   case "${ID:-}" in
