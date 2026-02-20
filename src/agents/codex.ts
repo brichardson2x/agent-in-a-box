@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { Config } from '../config';
 import { AgentResult, IAgentBackend } from './types';
 
 const CODex_BINARY = 'codex';
@@ -12,7 +11,7 @@ export class CodexAgent implements IAgentBackend {
       try {
         const child = spawn(CODex_BINARY, ['--auto-approve'], {
           cwd: repoPath,
-          env: { ...process.env, OPENAI_API_KEY: Config.openAiKey ?? '' },
+          env: process.env,
           stdio: ['pipe', 'pipe', 'pipe']
         });
 
