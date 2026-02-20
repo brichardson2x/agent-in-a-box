@@ -15,22 +15,28 @@ if [[ -f /etc/os-release ]]; then
   esac
 fi
 
-NODE_VERSION="${NODE_VERSION:-22}"
+FALLBACK_NODE_VERSION="20"
+NODE_VERSION="${NODE_VERSION:-$FALLBACK_NODE_VERSION}"
 
 sudo dnf install -y git sqlite curl tar python3 python3-pip make gcc-c++
 
-# Install nvm & Node.js LTS
+# Install nvm & Node.js
 if [[ ! -d "$HOME/.nvm" ]]; then
   curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 fi
 
-set +u
-source "$HOME/.nvm/nvm.sh"
-echo "Installing Node.js $NODE_VERSION via nvm (override with NODE_VERSION=...)."
-nvm install "$NODE_VERSION"
-nvm use "$NODE_VERSION"
-nvm alias default "$NODE_VERSION" >/dev/null 2>&1 || true
-set -u
+use_node_version() {
+  local version="$1"
+  set +u
+  source "$HOME/.nvm/nvm.sh"
+  echo "Installing Node.js $version via nvm (override with NODE_VERSION=...)."
+  nvm install "$version"
+  nvm use "$version"
+  nvm alias default "$version" >/dev/null 2>&1 || true
+  set -u
+}
+
+use_node_version "$NODE_VERSION"
 
 NODE_BIN="$(command -v node || true)"
 if [[ -z "$NODE_BIN" ]]; then
@@ -298,9 +304,27 @@ read -r -p "Press Enter after completing the platform app setup checklist and up
 sudo mkdir -p /etc/gitagent
 sudo cp .env /etc/gitagent/.env
 
-npm ci
-npm run build
-npm run test
+run_project_checks() {
+  npm ci
+  npm run build
+  npm run test
+}
+
+if ! run_project_checks; then
+  if [[ "$NODE_VERSION" != "$FALLBACK_NODE_VERSION" ]]; then
+    echo "Project setup failed on Node $NODE_VERSION. Retrying with Node $FALLBACK_NODE_VERSION for native module compatibility..."
+    use_node_version "$FALLBACK_NODE_VERSION"
+    NODE_BIN="$(command -v node || true)"
+    if [[ -z "$NODE_BIN" ]]; then
+      echo "Node.js binary not found on PATH after fallback switch."
+      exit 1
+    fi
+    run_project_checks
+  else
+    echo "Project setup failed on Node $NODE_VERSION."
+    exit 1
+  fi
+fi
 
 SERVICE_WORKDIR="$(pwd)"
 sudo sed \
