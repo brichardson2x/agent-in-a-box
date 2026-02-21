@@ -27,6 +27,14 @@ const normalizeModelSelectionMode = (value: string) => {
   return lower as 'default' | 'custom';
 };
 
+const normalizeBotHandle = (value: string) => {
+  const normalized = value.trim().replace(/^@+/, '').toLowerCase();
+  if (!normalized) {
+    throw new Error('BOT_HANDLE must not be empty');
+  }
+  return normalized;
+};
+
 const platform = normalizePlatform(requireEnv('PLATFORM'));
 const modelSelectionMode = normalizeModelSelectionMode(process.env.MODEL_SELECTION_MODE ?? 'default');
 
@@ -36,7 +44,7 @@ export const Config = {
   modelSelectionMode,
   codexModel: process.env.CODEX_MODEL ?? 'default',
   copilotModel: process.env.COPILOT_MODEL ?? 'default',
-  botHandle: requireEnv('BOT_HANDLE'),
+  botHandle: normalizeBotHandle(requireEnv('BOT_HANDLE')),
   reviewer: requireEnv('REVIEWER_USERNAME'),
   webhookSecret: platform === 'github' ? requireEnv('WEBHOOK_SECRET') : requireEnv('GITLAB_WEBHOOK_SECRET'),
   githubAppId: platform === 'github' ? requireEnv('GITHUB_APP_ID') : undefined,

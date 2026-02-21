@@ -39,6 +39,8 @@ class GitHubAdapter implements IPlatformAdapter {
     }
 
     const mention = `@${Config.botHandle}`;
+    const agentMention = `@${Config.agent.toLowerCase()}-box`;
+    const mentions = mention === agentMention ? [mention] : [mention, agentMention];
     const action = (body.action ?? '') as string;
     const isIssueEvent = event === 'issues';
     const isIssueCommentEvent = event === 'issue_comment';
@@ -51,8 +53,10 @@ class GitHubAdapter implements IPlatformAdapter {
       return null;
     }
 
-    const eventBody = (isIssueEvent ? body.issue?.body : body.comment?.body ?? body.review?.body ?? '') as string;
-    if (!eventBody.includes(mention)) {
+    const eventBodyRaw = isIssueEvent ? `${body.issue?.title ?? ''}\n${body.issue?.body ?? ''}` : body.comment?.body ?? body.review?.body ?? '';
+    const eventBody = typeof eventBodyRaw === 'string' ? eventBodyRaw : '';
+    const normalizedBody = eventBody.toLowerCase();
+    if (!mentions.some((candidate) => normalizedBody.includes(candidate))) {
       return null;
     }
 

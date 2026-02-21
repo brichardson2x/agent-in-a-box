@@ -28,8 +28,11 @@ class GitLabAdapter implements IPlatformAdapter {
     }
 
     const mention = `@${Config.botHandle}`;
+    const agentMention = `@${Config.agent.toLowerCase()}-box`;
+    const mentions = mention === agentMention ? [mention] : [mention, agentMention];
     const noteBody = (body.object_attributes?.note ?? '') as string;
-    if (!noteBody.includes(mention)) {
+    const normalizedBody = noteBody.toLowerCase();
+    if (!mentions.some((candidate) => normalizedBody.includes(candidate))) {
       return null;
     }
 
