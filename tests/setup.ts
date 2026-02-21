@@ -16,7 +16,5 @@
   ['REPO_REMOTE', 'https://example.com'],
   ['AGENT_SYSTEM_PROMPT', 'You are GitAgent']
 ].forEach(([key, value]) => {
-  if (!process.env[key as string]) {
-    process.env[key as string] = value as string;
-  }
+  process.env[key as string] = value as string;
 });
