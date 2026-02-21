@@ -426,16 +426,14 @@ warn_if_unsynced_clock
 ensure_repo_git_identity
 
 run_project_checks() {
-  npm ci
-  rm -rf dist
-  npm run build
-  npm run test
+  rm -rf dist && npm ci && npm run build && npm run test
 }
 
 if ! run_project_checks; then
   if [[ "$NODE_VERSION" != "$FALLBACK_NODE_VERSION" ]]; then
     echo "Project setup failed on Node $NODE_VERSION. Retrying with Node $FALLBACK_NODE_VERSION for native module compatibility..."
     use_node_version "$FALLBACK_NODE_VERSION"
+    NODE_VERSION="$FALLBACK_NODE_VERSION"
     NODE_BIN="$(command -v node || true)"
     if [[ -z "$NODE_BIN" ]]; then
       echo "Node.js binary not found on PATH after fallback switch."
