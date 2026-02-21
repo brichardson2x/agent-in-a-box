@@ -9,7 +9,7 @@ const API_BASE = 'https://api.github.com';
 
 class GitHubAdapter implements IPlatformAdapter {
   private mentions(): string[] {
-    const handles = [Config.botHandle, Config.agent]
+    const handles = [Config.botHandle, Config.agent, `${Config.agent}-box`]
       .map((value) => value.trim().replace(/^@+/, '').toLowerCase())
       .filter(Boolean);
     return [...new Set(handles)].map((handle) => `@${handle}`);
@@ -62,12 +62,10 @@ class GitHubAdapter implements IPlatformAdapter {
       return null;
     }
 
-    const issueBody = (body.issue?.body ?? '') as string;
-    const issueTitle = (body.issue?.title ?? '') as string;
-    const eventBody = (isIssueEvent ? issueBody : body.comment?.body ?? body.review?.body ?? '') as string;
-    const mentionSources = isIssueEvent ? [issueBody, issueTitle] : [eventBody];
-    const mentions = this.mentions();
-    if (!mentionSources.some((source) => this.containsMention(source, mentions))) {
+    const eventBodyRaw =
+      isIssueEvent ? `${body.issue?.title ?? ''}\n${body.issue?.body ?? ''}` : body.comment?.body ?? body.review?.body ?? '';
+    const eventBody = typeof eventBodyRaw === 'string' ? eventBodyRaw : '';
+    if (!this.containsMention(eventBody, this.mentions())) {
       return null;
     }
 

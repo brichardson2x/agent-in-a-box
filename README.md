@@ -16,11 +16,13 @@ Installer target: dnf-based RHEL-family distros (`rocky`, `centos`, `rhel`, `alm
    - If project setup fails on a custom Node version, installer retries with Node `20` for native module compatibility.
    - Manual fallback mode pauses and keeps re-checking until the selected CLI is installed and available on `PATH`.
 4. Fill in the required `.env` values for your platform (`GITHUB_APP_*` for GitHub, or `GITLAB_APP_*` + `GITLAB_BOT_TOKEN` for GitLab).
+   - For GitHub, `GITHUB_APP_ID` must be the App ID from GitHub App settings (not account/org ID or installation target ID).
 5. Configure your platform webhook to point at `/webhook` and use the matching secret (`WEBHOOK_SECRET` for GitHub, `GITLAB_WEBHOOK_SECRET` for GitLab).
    - Mentions must match `BOT_HANDLE` (for example, `BOT_HANDLE=copilot-box` means use `@copilot-box`).
 6. Optional firewall automation: set `OPEN_FIREWALL_PORT=true` in `.env` to auto-open `${PORT:-3000}/tcp` via `firewall-cmd` when available.
 
 The installer creates a wrapper script at `/usr/local/bin/gitagent-wrapper.sh` that sources nvm and launches the service. The systemd unit runs as your user and can access nvm-installed Node.
+The systemd unit reads environment values directly from your repo `.env` file, so `.env` updates are picked up on service restart.
 On health-check failure, installer prints `systemctl status` and recent `journalctl` logs so startup/config errors are visible immediately.
 
 ### Agent model settings

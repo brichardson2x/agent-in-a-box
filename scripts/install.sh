@@ -351,7 +351,7 @@ PLATFORM=github setup checklist:
 - Events: Issue comments, Pull request review comments.
 - Install the app on the target repository.
 - Download the private key (.pem) to this host.
-- Add App ID, Installation ID, Client ID, and private key path to .env.
+- Add App ID (from app settings, not account/installation target ID), Installation ID, Client ID, and private key path to .env.
 EOF
     ;;
   gitlab)
@@ -378,9 +378,6 @@ set +a
 
 validate_env_config
 
-sudo mkdir -p /etc/gitagent
-sudo cp .env /etc/gitagent/.env
-
 run_project_checks() {
   npm ci
   npm run build
@@ -404,9 +401,15 @@ if ! run_project_checks; then
 fi
 
 SERVICE_WORKDIR="$(pwd)"
+SERVICE_ENV_FILE="${SERVICE_WORKDIR}/.env"
 SERVICE_USER="$(whoami)"
 SERVICE_HOME="$(getent passwd "${SERVICE_USER}" | cut -d: -f6 || true)"
 SERVICE_ENTRYPOINT=""
+
+if [[ ! -f "${SERVICE_ENV_FILE}" ]]; then
+  echo "Environment file not found: ${SERVICE_ENV_FILE}"
+  exit 1
+fi
 
 if [[ -z "${SERVICE_HOME}" ]]; then
   echo "Unable to determine home directory for service user ${SERVICE_USER}."
@@ -442,6 +445,7 @@ rm -f /tmp/gitagent-wrapper.sh
 sudo restorecon -F /usr/local/bin/gitagent-wrapper.sh >/dev/null 2>&1 || true
 
 sudo sed \
+  -e "s|^EnvironmentFile=.*|EnvironmentFile=${SERVICE_ENV_FILE}|" \
   -e "s|^WorkingDirectory=.*|WorkingDirectory=${SERVICE_WORKDIR}|" \
   -e "s|^ExecStart=.*|ExecStart=/usr/local/bin/gitagent-wrapper.sh|" \
   -e "/^\[Service\]/a User=${SERVICE_USER}" \

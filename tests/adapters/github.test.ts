@@ -38,7 +38,7 @@ describe('GitHubAdapter.parseWebhookEvent', () => {
     const req = mockRequest('issues', {
       action: 'opened',
       repository: { full_name: 'owner/repo' },
-      issue: { number: 13, title: '@gitagent please handle this', body: 'details', user: { login: 'sam' } }
+      issue: { number: 13, title: '@GITAGENT please do this', body: '', user: { login: 'sam' } }
     });
 
     const parsed = githubAdapter.parseWebhookEvent(req);
@@ -67,7 +67,7 @@ describe('GitHubAdapter.parseWebhookEvent', () => {
       action: 'created',
       repository: { full_name: 'owner/repo' },
       issue: { number: 9 },
-      comment: { body: 'please run @codex', user: { login: 'casey' } }
+      comment: { body: 'please run @codex-box', user: { login: 'bot-user' } }
     });
 
     const parsed = githubAdapter.parseWebhookEvent(req);
