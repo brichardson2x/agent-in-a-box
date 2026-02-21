@@ -135,6 +135,28 @@ validate_env_config() {
   fi
 }
 
+warn_if_unsynced_clock() {
+  if [[ "$platform" != "github" ]]; then
+    return 0
+  fi
+  if ! command -v timedatectl >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local synced
+  synced="$(timedatectl show -p SystemClockSynchronized --value 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)"
+  if [[ "$synced" != "yes" ]]; then
+    cat <<'EOF'
+WARNING: System clock is not synchronized.
+GitHub App JWT auth can fail with "Bad credentials" until clock sync is healthy.
+Try:
+  sudo timedatectl set-ntp true
+  sudo systemctl restart chronyd || true
+  timedatectl status
+EOF
+  fi
+}
+
 print_service_diagnostics() {
   echo "Health check failed on http://127.0.0.1:${PORT:-3000}/health."
   echo "This is usually a service startup/config issue, not a firewall issue for localhost."
@@ -377,6 +399,7 @@ source .env
 set +a
 
 validate_env_config
+warn_if_unsynced_clock
 
 run_project_checks() {
   npm ci

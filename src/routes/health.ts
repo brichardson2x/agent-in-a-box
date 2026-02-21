@@ -1,9 +1,29 @@
+import { execFileSync } from 'node:child_process';
 import { Router } from 'express';
 import fetch from 'node-fetch';
 import { Config } from '../config';
 import { getInstallationToken } from '../adapters/github-auth';
 
 const router = Router();
+
+const githubClockSyncHint = (): string | undefined => {
+  try {
+    const synchronized = execFileSync('timedatectl', ['show', '-p', 'SystemClockSynchronized', '--value'], {
+      encoding: 'utf8'
+    })
+      .trim()
+      .toLowerCase();
+    if (synchronized !== 'yes') {
+      return (
+        'Detected unsynchronized system clock (`timedatectl status` -> `System clock synchronized: no`). ' +
+        'GitHub App JWT authentication can fail with Bad credentials until clock sync is healthy.'
+      );
+    }
+  } catch (error) {
+    void error;
+  }
+  return undefined;
+};
 
 router.get('/', async (_req, res) => {
   const payload: Record<string, unknown> = {
@@ -38,9 +58,11 @@ router.get('/', async (_req, res) => {
       }
     }
   } catch (error) {
+    const details = (error as Error).message;
+    const hint = Config.platform === 'github' && details.includes('Bad credentials') ? githubClockSyncHint() : undefined;
     payload.platformAuth = {
       status: 'warning',
-      details: (error as Error).message
+      details: hint ? `${details} ${hint}` : details
     };
   }
 
