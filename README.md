@@ -13,6 +13,7 @@ Installer target: dnf-based RHEL-family distros (`rocky`, `centos`, `rhel`, `alm
 3. CLI installer fallback behavior:
    - `copilot` / `codex`: tries npm global install first, retries with `--unsafe-perm`, then prompts for manual install.
    - `gh` / `glab`: tries dnf package first, then repo/RPM fallback, then prompts for manual install.
+   - For `PLATFORM=github`, installer requires `gh auth login` before continuing.
    - If project setup fails on a custom Node version, installer retries with Node `20` for native module compatibility.
    - Manual fallback mode pauses and keeps re-checking until the selected CLI is installed and available on `PATH`.
 4. Fill in the required `.env` values for your platform (`GITHUB_APP_*` for GitHub, or `GITLAB_APP_*` + `GITLAB_BOT_TOKEN` for GitLab).

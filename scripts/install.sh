@@ -233,6 +233,19 @@ ensure_gh() {
   fi
 }
 
+ensure_gh_auth() {
+  if gh auth status >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Authenticate GitHub CLI before continuing."
+  echo "Run: gh auth login"
+  until gh auth status >/dev/null 2>&1; do
+    read -r -p "Press Enter after running 'gh auth login' to re-check: " _
+  done
+  echo "GitHub CLI auth confirmed."
+}
+
 ensure_glab() {
   if command -v glab >/dev/null 2>&1; then
     return 0
@@ -354,6 +367,7 @@ esac
 case "$platform" in
   github)
     ensure_gh
+    ensure_gh_auth
     ;;
   gitlab)
     ensure_glab
