@@ -22,7 +22,7 @@ Installer target: dnf-based RHEL-family distros (`rocky`, `centos`, `rhel`, `alm
 6. Optional firewall automation: set `OPEN_FIREWALL_PORT=true` in `.env` to auto-open `${PORT:-3000}/tcp` via `firewall-cmd` when available.
 
 The installer creates a wrapper script at `/usr/local/bin/gitagent-wrapper.sh` that sources nvm and launches the service. The systemd unit runs as your user and can access nvm-installed Node.
-The systemd unit reads environment values directly from your repo `.env` file, so `.env` updates are picked up on service restart.
+Runtime config is loaded from your repo `.env` file at service start, so `.env` updates are picked up on service restart.
 On health-check failure, installer prints `systemctl status` and recent `journalctl` logs so startup/config errors are visible immediately.
 
 ### Agent model settings

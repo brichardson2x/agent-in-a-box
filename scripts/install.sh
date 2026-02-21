@@ -445,7 +445,7 @@ rm -f /tmp/gitagent-wrapper.sh
 sudo restorecon -F /usr/local/bin/gitagent-wrapper.sh >/dev/null 2>&1 || true
 
 sudo sed \
-  -e "s|^EnvironmentFile=.*|EnvironmentFile=${SERVICE_ENV_FILE}|" \
+  -e "/^EnvironmentFile=/d" \
   -e "s|^WorkingDirectory=.*|WorkingDirectory=${SERVICE_WORKDIR}|" \
   -e "s|^ExecStart=.*|ExecStart=/usr/local/bin/gitagent-wrapper.sh|" \
   -e "/^\[Service\]/a User=${SERVICE_USER}" \
