@@ -13,11 +13,11 @@ Installer target: dnf-based RHEL-family distros (`rocky`, `centos`, `rhel`, `alm
 3. CLI installer fallback behavior:
    - `copilot` / `codex`: tries npm global install first, retries with `--unsafe-perm`, then prompts for manual install.
    - `gh` / `glab`: tries dnf package first, then repo/RPM fallback, then prompts for manual install.
-   - For `PLATFORM=github`, installer requires `gh auth login` before continuing.
    - If project setup fails on a custom Node version, installer retries with Node `20` for native module compatibility.
    - Manual fallback mode pauses and keeps re-checking until the selected CLI is installed and available on `PATH`.
 4. Fill in the required `.env` values for your platform (`GITHUB_APP_*` for GitHub, or `GITLAB_APP_*` + `GITLAB_BOT_TOKEN` for GitLab).
    - For GitHub, `GITHUB_APP_ID` must be the App ID from GitHub App settings (not account/org ID or installation target ID).
+   - Before confirming the platform setup checklist in installer, login now (`gh auth login` for GitHub or `glab auth login` for GitLab).
    - Keep host time synchronized (`timedatectl status`) since GitHub App JWT auth fails on clock skew.
    - Installer auto-configures `user.name`/`user.email` in `REPO_PATH` if missing so webhook commits can be created.
 5. Configure your platform webhook to point at `/webhook` and use the matching secret (`WEBHOOK_SECRET` for GitHub, `GITLAB_WEBHOOK_SECRET` for GitLab).

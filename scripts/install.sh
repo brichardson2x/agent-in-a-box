@@ -233,19 +233,6 @@ ensure_gh() {
   fi
 }
 
-ensure_gh_auth() {
-  if gh auth status >/dev/null 2>&1; then
-    return 0
-  fi
-
-  echo "Authenticate GitHub CLI before continuing."
-  echo "Run: gh auth login"
-  until gh auth status >/dev/null 2>&1; do
-    read -r -p "Press Enter after running 'gh auth login' to re-check: " _
-  done
-  echo "GitHub CLI auth confirmed."
-}
-
 ensure_glab() {
   if command -v glab >/dev/null 2>&1; then
     return 0
@@ -367,7 +354,6 @@ esac
 case "$platform" in
   github)
     ensure_gh
-    ensure_gh_auth
     ;;
   gitlab)
     ensure_glab
@@ -411,6 +397,7 @@ PLATFORM=github setup checklist:
 - Install the app on the target repository.
 - Download the private key (.pem) to this host.
 - Add App ID (from app settings, not account/installation target ID), Installation ID, Client ID, and private key path to .env.
+- Before pressing Enter below, login now: gh auth login
 EOF
     ;;
   gitlab)
@@ -421,6 +408,7 @@ PLATFORM=gitlab setup checklist:
 - Set the bot token role to Developer on the target project/group.
 - Configure the project webhook URL and set the webhook secret.
 - Add GITLAB_APP_ID, GITLAB_APP_SECRET, GITLAB_BOT_TOKEN, and GITLAB_WEBHOOK_SECRET to .env.
+- Before pressing Enter below, login now: glab auth login
 EOF
     ;;
   *)
