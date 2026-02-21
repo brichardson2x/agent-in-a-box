@@ -403,6 +403,7 @@ warn_if_unsynced_clock
 
 run_project_checks() {
   npm ci
+  rm -rf dist
   npm run build
   npm run test
 }
@@ -439,15 +440,15 @@ if [[ -z "${SERVICE_HOME}" ]]; then
   exit 1
 fi
 
-if [[ -f "${SERVICE_WORKDIR}/dist/index.js" ]]; then
-  SERVICE_ENTRYPOINT="${SERVICE_WORKDIR}/dist/index.js"
-elif [[ -f "${SERVICE_WORKDIR}/dist/src/index.js" ]]; then
+if [[ -f "${SERVICE_WORKDIR}/dist/src/index.js" ]]; then
   SERVICE_ENTRYPOINT="${SERVICE_WORKDIR}/dist/src/index.js"
+elif [[ -f "${SERVICE_WORKDIR}/dist/index.js" ]]; then
+  SERVICE_ENTRYPOINT="${SERVICE_WORKDIR}/dist/index.js"
 else
   echo "Unable to find compiled service entrypoint."
   echo "Expected one of:"
-  echo "  ${SERVICE_WORKDIR}/dist/index.js"
   echo "  ${SERVICE_WORKDIR}/dist/src/index.js"
+  echo "  ${SERVICE_WORKDIR}/dist/index.js"
   exit 1
 fi
 
