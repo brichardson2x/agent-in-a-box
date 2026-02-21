@@ -4,7 +4,7 @@ import { WebhookEvent } from '../adapters/types';
 import { getAgent } from '../agents/factory';
 import { acknowledgmentComment, agentFailedComment, prCreatedComment, prDescription, pushFailedComment } from '../utils/responses';
 import { buildPrompt, recordHistory, resolveSession } from './session';
-import { checkoutBranch, createBranch, determineBranchName, pushBranch, stageAndCommit } from './git';
+import { checkoutBranch, createBranch, determineBranchName, pushBranch, resolveBaseBranch, stageAndCommit } from './git';
 import { linkPrToSession, updateSessionBranch } from '../db/sessions';
 
 const createIssueUrl = (platform: string, repo: string, number: number): string => {
@@ -42,10 +42,11 @@ export const orchestrateJob = async (event: WebhookEvent, adapter = getAdapter()
   const session = await resolveSession(event);
   const issueContext = await adapter.getIssueContext(event.repo, event.issueNumber);
   const branchName = session.branch ?? determineBranchName(issueContext.title, event.issueNumber, event.body);
+  const baseBranch = resolveBaseBranch(Config.repoPath, Config.defaultBranch);
   if (session.branch) {
     checkoutBranch(Config.repoPath, session.branch);
   } else {
-    createBranch(Config.repoPath, branchName, Config.defaultBranch);
+    createBranch(Config.repoPath, branchName, baseBranch);
     updateSessionBranch(session.id, branchName);
   }
   recordHistory(session.id, {
@@ -117,7 +118,7 @@ export const orchestrateJob = async (event: WebhookEvent, adapter = getAdapter()
 
   const issueUrl = createIssueUrl(event.platform, event.repo, event.issueNumber);
   const prDescriptionBody = prDescription(agentResult.summary, issueUrl, session.id);
-  const pr = await adapter.createPR(event.repo, branchName, Config.defaultBranch, issueContext.title, prDescriptionBody);
+  const pr = await adapter.createPR(event.repo, branchName, baseBranch, issueContext.title, prDescriptionBody);
 
   await adapter.requestReview(event.repo, pr.number, Config.reviewer);
   await adapter.linkIssueToPR(event.repo, event.issueNumber, pr.number);
