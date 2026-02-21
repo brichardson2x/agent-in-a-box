@@ -34,6 +34,19 @@ describe('GitHubAdapter.parseWebhookEvent', () => {
     expect(githubAdapter.parseWebhookEvent(req)).toBeNull();
   });
 
+  test('parses issues event when mention is in title', () => {
+    const req = mockRequest('issues', {
+      action: 'opened',
+      repository: { full_name: 'owner/repo' },
+      issue: { number: 13, title: '@gitagent please handle this', body: 'details', user: { login: 'sam' } }
+    });
+
+    const parsed = githubAdapter.parseWebhookEvent(req);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.issueNumber).toBe(13);
+    expect(parsed?.author).toBe('sam');
+  });
+
   test('parses issue_comment mention on issue', () => {
     const req = mockRequest('issue_comment', {
       action: 'created',
@@ -47,5 +60,18 @@ describe('GitHubAdapter.parseWebhookEvent', () => {
     expect(parsed?.threadType).toBe('issue');
     expect(parsed?.issueNumber).toBe(7);
     expect(parsed?.author).toBe('bob');
+  });
+
+  test('parses issue_comment using agent alias mention', () => {
+    const req = mockRequest('issue_comment', {
+      action: 'created',
+      repository: { full_name: 'owner/repo' },
+      issue: { number: 9 },
+      comment: { body: 'please run @codex', user: { login: 'casey' } }
+    });
+
+    const parsed = githubAdapter.parseWebhookEvent(req);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.issueNumber).toBe(9);
   });
 });

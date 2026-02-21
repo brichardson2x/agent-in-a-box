@@ -8,6 +8,18 @@ import { getInstallationToken } from './github-auth';
 const API_BASE = 'https://api.github.com';
 
 class GitHubAdapter implements IPlatformAdapter {
+  private mentions(): string[] {
+    const handles = [Config.botHandle, Config.agent]
+      .map((value) => value.trim().replace(/^@+/, '').toLowerCase())
+      .filter(Boolean);
+    return [...new Set(handles)].map((handle) => `@${handle}`);
+  }
+
+  private containsMention(text: string, mentions: string[]): boolean {
+    const lower = text.toLowerCase();
+    return mentions.some((mention) => lower.includes(mention));
+  }
+
   private async ensureOk(response: Response, context: string): Promise<void> {
     if (response.ok) {
       return;
@@ -38,7 +50,6 @@ class GitHubAdapter implements IPlatformAdapter {
       return null;
     }
 
-    const mention = `@${Config.botHandle}`;
     const action = (body.action ?? '') as string;
     const isIssueEvent = event === 'issues';
     const isIssueCommentEvent = event === 'issue_comment';
@@ -51,8 +62,12 @@ class GitHubAdapter implements IPlatformAdapter {
       return null;
     }
 
-    const eventBody = (isIssueEvent ? body.issue?.body : body.comment?.body ?? body.review?.body ?? '') as string;
-    if (!eventBody.includes(mention)) {
+    const issueBody = (body.issue?.body ?? '') as string;
+    const issueTitle = (body.issue?.title ?? '') as string;
+    const eventBody = (isIssueEvent ? issueBody : body.comment?.body ?? body.review?.body ?? '') as string;
+    const mentionSources = isIssueEvent ? [issueBody, issueTitle] : [eventBody];
+    const mentions = this.mentions();
+    if (!mentionSources.some((source) => this.containsMention(source, mentions))) {
       return null;
     }
 
