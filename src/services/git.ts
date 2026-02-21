@@ -21,6 +21,26 @@ const runGit = (repoPath: string, args: string[]): void => {
 const readGit = (repoPath: string, args: string[]): string =>
   execFileSync('git', args, { cwd: repoPath, encoding: 'utf8' }).trim();
 
+const readGitOrEmpty = (repoPath: string, args: string[]): string => {
+  try {
+    return readGit(repoPath, args);
+  } catch {
+    return '';
+  }
+};
+
+const ensureGitIdentity = (repoPath: string): void => {
+  const userName = readGitOrEmpty(repoPath, ['config', '--get', 'user.name']);
+  if (!userName) {
+    runGit(repoPath, ['config', 'user.name', 'GitAgent']);
+  }
+
+  const userEmail = readGitOrEmpty(repoPath, ['config', '--get', 'user.email']);
+  if (!userEmail) {
+    runGit(repoPath, ['config', 'user.email', 'gitagent@localhost']);
+  }
+};
+
 const remoteHasBranch = (repoPath: string, branch: string): boolean => {
   try {
     execFileSync('git', ['ls-remote', '--exit-code', '--heads', 'origin', branch], {
@@ -80,6 +100,7 @@ export const checkoutBranch = (repoPath: string, branchName: string): void => {
 };
 
 export const stageAndCommit = (repoPath: string, message: string): void => {
+  ensureGitIdentity(repoPath);
   runGit(repoPath, ['add', '-A']);
   runGit(repoPath, ['commit', '-m', message]);
 };
