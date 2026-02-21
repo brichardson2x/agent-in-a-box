@@ -8,6 +8,18 @@ import { getInstallationToken } from './github-auth';
 const API_BASE = 'https://api.github.com';
 
 class GitHubAdapter implements IPlatformAdapter {
+  private mentions(): string[] {
+    const handles = [Config.botHandle, Config.agent, `${Config.agent}-box`]
+      .map((value) => value.trim().replace(/^@+/, '').toLowerCase())
+      .filter(Boolean);
+    return [...new Set(handles)].map((handle) => `@${handle}`);
+  }
+
+  private containsMention(text: string, mentions: string[]): boolean {
+    const lower = text.toLowerCase();
+    return mentions.some((mention) => lower.includes(mention));
+  }
+
   private async ensureOk(response: Response, context: string): Promise<void> {
     if (response.ok) {
       return;
@@ -38,9 +50,6 @@ class GitHubAdapter implements IPlatformAdapter {
       return null;
     }
 
-    const mention = `@${Config.botHandle}`;
-    const agentMention = `@${Config.agent.toLowerCase()}-box`;
-    const mentions = mention === agentMention ? [mention] : [mention, agentMention];
     const action = (body.action ?? '') as string;
     const isIssueEvent = event === 'issues';
     const isIssueCommentEvent = event === 'issue_comment';
@@ -53,10 +62,10 @@ class GitHubAdapter implements IPlatformAdapter {
       return null;
     }
 
-    const eventBodyRaw = isIssueEvent ? `${body.issue?.title ?? ''}\n${body.issue?.body ?? ''}` : body.comment?.body ?? body.review?.body ?? '';
+    const eventBodyRaw =
+      isIssueEvent ? `${body.issue?.title ?? ''}\n${body.issue?.body ?? ''}` : body.comment?.body ?? body.review?.body ?? '';
     const eventBody = typeof eventBodyRaw === 'string' ? eventBodyRaw : '';
-    const normalizedBody = eventBody.toLowerCase();
-    if (!mentions.some((candidate) => normalizedBody.includes(candidate))) {
+    if (!this.containsMention(eventBody, this.mentions())) {
       return null;
     }
 
