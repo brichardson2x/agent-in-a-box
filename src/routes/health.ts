@@ -17,14 +17,15 @@ router.get('/', async (_req, res) => {
   try {
     if (Config.platform === 'github') {
       const token = await getInstallationToken();
-      const response = await fetch('https://api.github.com/app', {
+      const response = await fetch('https://api.github.com/installation/repositories', {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/vnd.github+json'
         }
       });
       if (!response.ok) {
-        throw new Error(`GitHub auth check failed with status ${response.status}`);
+        const details = await response.text();
+        throw new Error(`GitHub installation auth check failed (${response.status}): ${details}`);
       }
     } else {
       const response = await fetch('https://gitlab.com/api/v4/user', {
