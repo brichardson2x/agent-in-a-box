@@ -18,9 +18,75 @@ const runGit = (repoPath: string, args: string[]): void => {
   execFileSync('git', args, { cwd: repoPath, stdio: 'inherit' });
 };
 
+const readGit = (repoPath: string, args: string[]): string =>
+  execFileSync('git', args, { cwd: repoPath, encoding: 'utf8' }).trim();
+
+const readGitOrEmpty = (repoPath: string, args: string[]): string => {
+  try {
+    return readGit(repoPath, args);
+  } catch {
+    return '';
+  }
+};
+
+const ensureGitIdentity = (repoPath: string): void => {
+  const userName = readGitOrEmpty(repoPath, ['config', '--get', 'user.name']);
+  if (!userName) {
+    runGit(repoPath, ['config', 'user.name', 'GitAgent']);
+  }
+
+  const userEmail = readGitOrEmpty(repoPath, ['config', '--get', 'user.email']);
+  if (!userEmail) {
+    runGit(repoPath, ['config', 'user.email', 'gitagent@localhost']);
+  }
+};
+
+const remoteHasBranch = (repoPath: string, branch: string): boolean => {
+  try {
+    execFileSync('git', ['ls-remote', '--exit-code', '--heads', 'origin', branch], {
+      cwd: repoPath,
+      stdio: 'ignore'
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const remoteDefaultBranch = (repoPath: string): string | undefined => {
+  try {
+    const output = readGit(repoPath, ['ls-remote', '--symref', 'origin', 'HEAD']);
+    const match = output.match(/ref:\s+refs\/heads\/([^\s]+)\s+HEAD/);
+    return match?.[1];
+  } catch {
+    return undefined;
+  }
+};
+
+export const resolveBaseBranch = (repoPath: string, configuredBaseBranch: string): string => {
+  const normalizedBaseBranch = configuredBaseBranch.trim();
+  if (normalizedBaseBranch && remoteHasBranch(repoPath, normalizedBaseBranch)) {
+    return normalizedBaseBranch;
+  }
+
+  const detectedBaseBranch = remoteDefaultBranch(repoPath);
+  if (detectedBaseBranch) {
+    return detectedBaseBranch;
+  }
+
+  throw new Error(
+    `Unable to resolve remote base branch (configured DEFAULT_BRANCH=${configuredBaseBranch}). Set DEFAULT_BRANCH to an existing branch on origin.`
+  );
+};
+
 export const createBranch = (repoPath: string, branchName: string, baseBranch: string): void => {
-  runGit(repoPath, ['fetch', 'origin', baseBranch]);
-  runGit(repoPath, ['checkout', baseBranch]);
+  const resolvedBaseBranch = resolveBaseBranch(repoPath, baseBranch);
+  runGit(repoPath, ['fetch', 'origin', resolvedBaseBranch]);
+  try {
+    runGit(repoPath, ['checkout', resolvedBaseBranch]);
+  } catch {
+    runGit(repoPath, ['checkout', '-b', resolvedBaseBranch, `origin/${resolvedBaseBranch}`]);
+  }
   runGit(repoPath, ['checkout', '-b', branchName]);
 };
 
@@ -34,6 +100,7 @@ export const checkoutBranch = (repoPath: string, branchName: string): void => {
 };
 
 export const stageAndCommit = (repoPath: string, message: string): void => {
+  ensureGitIdentity(repoPath);
   runGit(repoPath, ['add', '-A']);
   runGit(repoPath, ['commit', '-m', message]);
 };

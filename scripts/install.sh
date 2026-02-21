@@ -157,6 +157,29 @@ EOF
   fi
 }
 
+ensure_repo_git_identity() {
+  if ! git -C "${REPO_PATH}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "REPO_PATH is not a git repository: ${REPO_PATH}"
+    exit 1
+  fi
+
+  local configured_name configured_email default_name default_email
+  configured_name="$(git -C "${REPO_PATH}" config --get user.name || true)"
+  configured_email="$(git -C "${REPO_PATH}" config --get user.email || true)"
+  default_name="GitAgent"
+  default_email="$(whoami)@localhost"
+
+  if [[ -z "${configured_name}" ]]; then
+    git -C "${REPO_PATH}" config user.name "${default_name}"
+    echo "Configured git user.name for ${REPO_PATH}: ${default_name}"
+  fi
+
+  if [[ -z "${configured_email}" ]]; then
+    git -C "${REPO_PATH}" config user.email "${default_email}"
+    echo "Configured git user.email for ${REPO_PATH}: ${default_email}"
+  fi
+}
+
 print_service_diagnostics() {
   echo "Health check failed on http://127.0.0.1:${PORT:-3000}/health."
   echo "This is usually a service startup/config issue, not a firewall issue for localhost."
@@ -400,9 +423,11 @@ set +a
 
 validate_env_config
 warn_if_unsynced_clock
+ensure_repo_git_identity
 
 run_project_checks() {
   npm ci
+  rm -rf dist
   npm run build
   npm run test
 }
@@ -439,15 +464,15 @@ if [[ -z "${SERVICE_HOME}" ]]; then
   exit 1
 fi
 
-if [[ -f "${SERVICE_WORKDIR}/dist/index.js" ]]; then
-  SERVICE_ENTRYPOINT="${SERVICE_WORKDIR}/dist/index.js"
-elif [[ -f "${SERVICE_WORKDIR}/dist/src/index.js" ]]; then
+if [[ -f "${SERVICE_WORKDIR}/dist/src/index.js" ]]; then
   SERVICE_ENTRYPOINT="${SERVICE_WORKDIR}/dist/src/index.js"
+elif [[ -f "${SERVICE_WORKDIR}/dist/index.js" ]]; then
+  SERVICE_ENTRYPOINT="${SERVICE_WORKDIR}/dist/index.js"
 else
   echo "Unable to find compiled service entrypoint."
   echo "Expected one of:"
-  echo "  ${SERVICE_WORKDIR}/dist/index.js"
   echo "  ${SERVICE_WORKDIR}/dist/src/index.js"
+  echo "  ${SERVICE_WORKDIR}/dist/index.js"
   exit 1
 fi
 

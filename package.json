@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "description": "AI-powered issue-to-PR agent driven by webhooks and autonomous agents.",
   "type": "commonjs",
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/src/index.js",
     "dev": "tsx watch src/index.ts",
     "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit",

@@ -18,6 +18,7 @@ Installer target: dnf-based RHEL-family distros (`rocky`, `centos`, `rhel`, `alm
 4. Fill in the required `.env` values for your platform (`GITHUB_APP_*` for GitHub, or `GITLAB_APP_*` + `GITLAB_BOT_TOKEN` for GitLab).
    - For GitHub, `GITHUB_APP_ID` must be the App ID from GitHub App settings (not account/org ID or installation target ID).
    - Keep host time synchronized (`timedatectl status`) since GitHub App JWT auth fails on clock skew.
+   - Installer auto-configures `user.name`/`user.email` in `REPO_PATH` if missing so webhook commits can be created.
 5. Configure your platform webhook to point at `/webhook` and use the matching secret (`WEBHOOK_SECRET` for GitHub, `GITLAB_WEBHOOK_SECRET` for GitLab).
    - Mentions must match `BOT_HANDLE` (for example, `BOT_HANDLE=copilot-box` means use `@copilot-box`).
 6. Optional firewall automation: set `OPEN_FIREWALL_PORT=true` in `.env` to auto-open `${PORT:-3000}/tcp` via `firewall-cmd` when available.
